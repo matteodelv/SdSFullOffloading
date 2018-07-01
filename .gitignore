@@ -1,3 +1,9 @@
+# Check if should be tracked (seems not for now)
+.cproject
+.nedexclusions
+.nedfolders
+.oppbuildspec
+
 # Prerequisites
 *.d
 
