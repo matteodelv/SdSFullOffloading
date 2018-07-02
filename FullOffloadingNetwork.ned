@@ -24,6 +24,14 @@ network FullOffloadingNetwork
 {
     parameters:
         @display("i=block/network2");
+        
+        int meanJobSize @unit(byte);
+        int wifiAvailableDuration @unit(s);
+        int cellularAvailableDuration @unit(s);
+        int wifiDataRate @unit(bps);
+        int cellularDataRate @unit(bps);
+        int wifiPowerConsumption @unit(W);
+        int cellularPowerConsumption @unit(W);
     submodules:
         sink: Sink {
             @display("p=454,173");
