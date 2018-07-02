@@ -16,6 +16,8 @@
 import org.omnetpp.queueing.Source;
 import org.omnetpp.queueing.Queue;
 import org.omnetpp.queueing.Sink;
+import org.omnetpp.queueing.PassiveQueue;
+import org.omnetpp.queueing.Server;
 
 
 network FullOffloadingNetwork
@@ -24,25 +26,28 @@ network FullOffloadingNetwork
         @display("i=block/network2");
     submodules:
         sink: Sink {
-            @display("p=451,196");
+            @display("p=454,173");
         }
-        wifiQueue: Queue {
-            @display("p=183,255");
+        wifiQueue: PassiveQueue {
+            @display("i=block/passiveq");
         }
         cellularQueue: Queue {
             @display("i=queue");
         }
         remoteQueue: Queue {
-            @display("i=queue;");
+            @display("i=queue");
+        }
+        wifiServer: Server {
+            @display("i=block/server");
         }
         source: Source {
-            @display("p=52,196");
+            @display("p=42,168");
         }
     connections:
         source.out --> wifiQueue.in++;
-        source.out --> cellularQueue.in++;
-        remoteQueue.out --> sink.in++;
-        wifiQueue.out --> cellularQueue.in++;
-        wifiQueue.out --> remoteQueue.in++;
+        wifiQueue.out++ --> wifiServer.in++;
+        wifiServer.out --> cellularQueue.in++;
+        wifiServer.out --> remoteQueue.in++;
         cellularQueue.out --> remoteQueue.in++;
+        remoteQueue.out --> sink.in++;
 }
