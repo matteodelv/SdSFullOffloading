@@ -24,7 +24,7 @@ network FullOffloadingNetwork
 {
     parameters:
         @display("i=block/network2");
-        
+
         int meanJobSize @unit(byte) = default(1MB);
         volatile double wifiAvailableDuration @unit(s) = default(20min);
         volatile double cellularAvailableDuration @unit(s) = default(40min);
@@ -32,21 +32,22 @@ network FullOffloadingNetwork
         double cellularDataRate @unit(bps) = default(5Mbps);
         double wifiPowerConsumption @unit(W) = default(1W);
         double cellularPowerConsumption @unit(W) = default(3W);
+        double renegingRate = default(0.15);
     submodules:
         sink: Sink {
             @display("p=454,173");
         }
         wifiQueue: PassiveQueue {
-            @display("i=block/passiveq");
+            @display("i=block/passiveq;p=125,118");
+        }
+        wifiServer: ModulatedServer {
+            @display("i=block/server;p=188,185");
         }
         cellularQueue: Queue {
-            @display("i=queue");
+            @display("i=block/queue;p=227,73");
         }
         remoteQueue: Queue {
-            @display("i=queue");
-        }
-        wifiServer: Server {	// Try to implement a custom server to handle modulating process ON/OFF
-            @display("i=block/server");
+            @display("i=block/queue");
         }
         source: Source {
             @display("p=42,168");
@@ -54,8 +55,8 @@ network FullOffloadingNetwork
     connections:
         source.out --> wifiQueue.in++;
         wifiQueue.out++ --> wifiServer.in++;
-        wifiServer.out --> cellularQueue.in++;
-        wifiServer.out --> { datarate = wifiDataRate; } --> remoteQueue.in++;
-        cellularQueue.out --> { datarate = cellularDataRate; } --> remoteQueue.in++;
+        wifiServer.out++ --> cellularQueue.in++;
+        wifiServer.out++ --> {  datarate = wifiDataRate; } --> remoteQueue.in++;
+        cellularQueue.out --> {  datarate = cellularDataRate; } --> remoteQueue.in++;
         remoteQueue.out --> sink.in++;
 }
