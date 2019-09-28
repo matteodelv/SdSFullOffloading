@@ -2,7 +2,7 @@
 # OMNeT++/OMNEST Makefile for SdSFullOffloading
 #
 # This file was generated with the command:
-#  opp_makemake -f --deep -O out -KQUEUEINGLIB_PROJ=/Applications/omnetpp-5.3/samples/queueinglib -DQUEUEING_IMPORT -I. -I$$\(QUEUEINGLIB_PROJ\) -L$$\(QUEUEINGLIB_PROJ\) -lqueueinglib$$\(D\)
+#  opp_makemake -f --deep -O out -KQUEUEINGLIB_PROJ=/Users/matteo/omnetpp-5.5.1/samples/queueinglib -DQUEUEING_IMPORT -I. -I$$\(QUEUEINGLIB_PROJ\) -L$$\(QUEUEINGLIB_PROJ\) -lqueueinglib$$\(D\)
 #
 
 # Name of target to be created (-o option)
@@ -40,7 +40,7 @@ MSGFILES = \
 SMFILES =
 
 # Other makefile variables (-K)
-QUEUEINGLIB_PROJ=/Applications/omnetpp-5.3/samples/queueinglib
+QUEUEINGLIB_PROJ=/Users/matteo/omnetpp-5.5.1/samples/queueinglib
 
 #------------------------------------------------------------------------------
 
@@ -112,7 +112,7 @@ $O/%.o: %.cc $(COPTS_FILE) | msgheaders smheaders
 
 %_m.cc %_m.h: %.msg
 	$(qecho) MSGC: $<
-	$(Q)$(MSGC) -s _m.cc -MD -MP -MF $O/$(basename $@).d $(MSGCOPTS) $?
+	$(Q)$(MSGC) -s _m.cc -MD -MP -MF $O/$(basename $<)_m.h.d $(MSGCOPTS) $?
 
 %_sm.cc %_sm.h: %.sm
 	$(qecho) SMC: $<
@@ -135,4 +135,4 @@ cleanall:
 	$(Q)-rm -rf $(PROJECT_OUTPUT_DIR)
 
 # include all dependencies
--include $(OBJS:%.o=%.d)
+-include $(OBJS:%=%.d) $(MSGFILES:%.msg=$O/%_m.h.d)

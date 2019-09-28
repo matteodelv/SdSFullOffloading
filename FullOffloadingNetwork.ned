@@ -40,7 +40,7 @@ network FullOffloadingNetwork
         wifiQueue: PassiveQueue {
             @display("i=block/passiveq;p=125,118");
         }
-        wifiServer: ModulatedServer {
+        wifiServer: Server {
             @display("i=block/server;p=188,185");
         }
         cellularQueue: Queue {
@@ -53,10 +53,16 @@ network FullOffloadingNetwork
             @display("p=42,168");
         }
     connections:
+        //source.out --> wifiQueue.in++;
+        //wifiQueue.out++ --> wifiServer.in++;
+        //wifiServer.out++ --> cellularQueue.in++;
+        //wifiServer.out++ --> {  datarate = wifiDataRate; } --> remoteQueue.in++;
+        //cellularQueue.out --> {  datarate = cellularDataRate; } --> remoteQueue.in++;
+        //remoteQueue.out --> sink.in++;
         source.out --> wifiQueue.in++;
         wifiQueue.out++ --> wifiServer.in++;
-        wifiServer.out++ --> cellularQueue.in++;
-        wifiServer.out++ --> {  datarate = wifiDataRate; } --> remoteQueue.in++;
-        cellularQueue.out --> {  datarate = cellularDataRate; } --> remoteQueue.in++;
+        wifiQueue.out++ --> cellularQueue.in++;
+        wifiServer.out --> { datarate = wifiDataRate; } --> remoteQueue.in++;
+        cellularQueue.out --> { datarate = cellularDataRate; } --> remoteQueue.in++;
         remoteQueue.out --> sink.in++;
 }

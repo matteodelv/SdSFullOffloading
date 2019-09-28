@@ -1,5 +1,5 @@
 //
-// Generated file, do not edit! Created by nedtool 5.3 from FOMJob.msg.
+// Generated file, do not edit! Created by nedtool 5.5 from FOMJob.msg.
 //
 
 // Disable warnings about unused variables, empty switch stmts, etc:
