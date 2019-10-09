@@ -24,7 +24,7 @@ private:
     simsignal_t queueingTimeSignal;
     simsignal_t busySignal;
 
-    Job *jobServiced;
+    Job *servicedJob;
     cMessage *endServiceMsg;
     cQueue queue;
     int capacity;
@@ -50,6 +50,7 @@ protected:
     virtual void arrival(Job *job);
     virtual simtime_t startService(Job *job);
     virtual void suspendService(Job *job); // va bene void oppure è meglio ritornare simtime_t?
+    virtual void resumeService(Job *job);
     virtual void endService(Job *job);
 };
 

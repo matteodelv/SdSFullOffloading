@@ -2,7 +2,10 @@ results/
 out/
 .DS_Store
 .qtenvrc
+.settings
 SdSFullOffloading
+*.xml
+*_dbg
 
 # Check if should be tracked (seems not for now)
 .cproject
