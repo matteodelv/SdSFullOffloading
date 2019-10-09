@@ -3,6 +3,9 @@ out/
 .DS_Store
 .qtenvrc
 SdSFullOffloading
+QueueProject
+*.xml
+*_dbg
 
 # Check if should be tracked (seems not for now)
 .cproject
