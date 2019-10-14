@@ -9,8 +9,8 @@
 #define QUEUESUBCLASS_H_
 
 #include "QueueingDefs.h"
-#import "Queue.h"
-#import "Job.h"
+#include "Queue.h"
+#include "Job.h"
 
 using namespace queueing;
 
@@ -36,6 +36,12 @@ private:
 
     Job *getFromQueue();
 
+    simtime_t nextStatusChangeTime;
+    simtime_t curJobServiceTime = SIMTIME_ZERO;
+
+    bool endsBeforeNextStatusChange(simtime_t endTime);
+    void updateNextStatusChangeTime();
+
 public:
     QueueSubclass();
     virtual ~QueueSubclass();
@@ -53,43 +59,6 @@ protected:
     virtual void resumeService(Job *job);
     virtual void endService(Job *job);
 };
-
-//#import <omnetpp.h>
-//#import "Job.h"
-//#import "Queue.h"
-//
-//using namespace queueing;
-//
-//class QueueSubclass : public Queue {
-//
-//public:
-//    QueueSubclass();
-//    virtual ~QueueSubclass();
-///*
-//protected:
-//    virtual void initialize() override;
-//    virtual void handleMessage(cMessage *msg) override;
-//    virtual void refreshDisplay() const override;
-//    virtual void finish() override;
-//
-//    // hook functions to (re)define behaviour
-//    virtual void arrival(Job *job);
-//    virtual simtime_t startService(Job *job);
-//    virtual void endService(Job *job);
-//*/
-//
-//protected:
-//    virtual void initialize() override;
-//    virtual void handleMessage(cMessage *msg) override;
-//
-//    virtual void arrival(Job *job) override;
-//    virtual simtime_t startService(Job *job) override;
-//    virtual void endService(Job *job) override;
-//
-//    bool wifiAvailable;
-//    cMessage *wifiStatusMsg;
-//    Job *jobServiced;
-//};
 
 
 

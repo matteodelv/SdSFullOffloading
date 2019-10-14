@@ -7,9 +7,20 @@
 
 #include "QueueSubclass.h"
 #include "Job.h"
+//#include "OffloadedJob.h"
 
 Define_Module(QueueSubclass);
 
+bool QueueSubclass::endsBeforeNextStatusChange(simtime_t endTime) {
+    return (endTime <= nextStatusChangeTime) ? true : false;
+}
+
+void QueueSubclass::updateNextStatusChangeTime() {
+    simtime_t nextChange = par("changeStateDistribution").doubleValue();
+    nextStatusChangeTime = simTime() + nextChange;
+    scheduleAt(nextStatusChangeTime, wifiStatusMsg);
+    EV << "Next WIFI status change time: " << nextStatusChangeTime << endl;
+}
 
 QueueSubclass::QueueSubclass() {
     servicedJob = nullptr;
@@ -41,16 +52,15 @@ void QueueSubclass::initialize() {
 
     wifiAvailable = false;
     wifiStatusMsg = new cMessage("wifi_status_changed");
-    simtime_t changeStatusTime = par("changeStateDistribution").doubleValue();
-    scheduleAt(simTime() + changeStatusTime, wifiStatusMsg);
+    updateNextStatusChangeTime();
 
-    EV << "Called INITIALIZE on QueueSubclass\nInitial wifiAvailable = " << wifiAvailable << "\n";
+    EV << "Called INITIALIZE on QueueSubclass\nInitial wifiAvailable = " << (wifiAvailable ? "ON" : "OFF") << "\n";
 }
 
 void QueueSubclass::handleMessage(cMessage *msg) {
     if (msg == wifiStatusMsg) {
         wifiAvailable = !wifiAvailable;
-        EV << "WIFI STATUS CHANGED! Now is " << wifiAvailable << "\n";
+        EV << "WIFI STATUS CHANGED! Now is " << (wifiAvailable ? "ON" : "OFF") << "\n";
 
         // wifi OFF -> ON
         if (wifiAvailable) {
@@ -67,12 +77,19 @@ void QueueSubclass::handleMessage(cMessage *msg) {
                     servicedJob = getFromQueue();
                     emit(queueLengthSignal, length());
                     simtime_t serviceTime = startService(servicedJob);
-                    scheduleAt(simTime() + serviceTime, endServiceMsg);
+                    simtime_t nextSchedule = simTime() + serviceTime;
+                    curJobServiceTime = serviceTime;
+                    scheduleAt(nextSchedule, endServiceMsg);
+                    EV << "Job service time: " << curJobServiceTime << endl;
+                    EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
                 }
             }
+
+            updateNextStatusChangeTime();
         }
         // wifi ON -> OFF
         else {
+            updateNextStatusChangeTime();
             if (servicedJob) {
                 suspendService(servicedJob);
             }
@@ -81,10 +98,10 @@ void QueueSubclass::handleMessage(cMessage *msg) {
             }
         }
 
-        simtime_t changeStatusTime = par("changeStateDistribution").doubleValue();
-        scheduleAt(simTime() + changeStatusTime, wifiStatusMsg);
+
     }
     else if (msg == endServiceMsg) {
+        // TODO: Fix this call with servicedJob (vedi foglio)
         endService(servicedJob);
 
         if (queue.isEmpty()) {
@@ -95,10 +112,15 @@ void QueueSubclass::handleMessage(cMessage *msg) {
             servicedJob = getFromQueue();
             emit(queueLengthSignal, length());
             simtime_t serviceTime = startService(servicedJob);
-            scheduleAt(simTime() + serviceTime, endServiceMsg);
+            simtime_t nextSchedule = simTime() + serviceTime;
+            curJobServiceTime = serviceTime;
+            scheduleAt(nextSchedule, endServiceMsg);
+            EV << "Job service time: " << curJobServiceTime << endl;
+            EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
         }
     }
     else {
+        //OffloadedJob *job = check_and_cast<OffloadedJob *>(msg);
         Job *job = check_and_cast<Job *>(msg);
         arrival(job);
 
@@ -107,7 +129,11 @@ void QueueSubclass::handleMessage(cMessage *msg) {
                 servicedJob = job;
                 emit(busySignal, true);
                 simtime_t serviceTime = startService(servicedJob);
-                scheduleAt(simTime() + serviceTime, endServiceMsg);
+                simtime_t nextSchedule = simTime() + serviceTime;
+                curJobServiceTime = serviceTime;
+                scheduleAt(nextSchedule, endServiceMsg);
+                EV << "Job service time: " << curJobServiceTime << endl;
+                EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
             }
             else {
                 if (capacity >= 0 && queue.getLength() >= capacity) {
@@ -162,8 +188,8 @@ simtime_t QueueSubclass::startService(Job *job) {
     simtime_t d = simTime() - job->getTimestamp();
     emit(queueingTimeSignal, d);
     job->setTotalQueueingTime(job->getTotalQueueingTime() + d);
-    EV << "Starting service of " << job->getName() << endl;
     job->setTimestamp();
+    EV << "Starting service of " << job->getName() << " - Current time: " << simTime() << endl;
     return par("serviceTime").doubleValue();
 }
 
@@ -175,15 +201,27 @@ void QueueSubclass::endService(Job *job) {
 }
 
 void QueueSubclass::suspendService(Job *job) {
+    // TODO: reschedule endServiceMsg to nextStatusChangeTime + job remaining processing time
+    cancelEvent(endServiceMsg);
+    simtime_t startTime = job->getTimestamp();
+    simtime_t elapsedTime = simTime() - startTime;
+    simtime_t remainingTime = curJobServiceTime - elapsedTime;
+    scheduleAt(nextStatusChangeTime + remainingTime, endServiceMsg);
+    job->setTimestamp();
     suspendedJob = job;
     servicedJob = nullptr;
     EV << "Service SUSPENDED! Received: " << job << " - Suspended: " << suspendedJob << " - Serviced: " << servicedJob << endl;
+    EV << "Elapsed service time for " << job << ": " << elapsedTime << endl;
+    EV << "Remaining service time for " << job << ": " << remainingTime << endl;
+    EV << "New scheduleAt time: " << nextStatusChangeTime + remainingTime << endl;
 }
 
 void QueueSubclass::resumeService(Job *job) {
+    job->setTimestamp();
     servicedJob = job;
     suspendedJob = nullptr;
     EV << "Service RESUMED! Received: " << job << " - Suspended: " << suspendedJob << " - Serviced: " << servicedJob << endl;
+    EV << "Current time: " << simTime() << endl;
 }
 
 void QueueSubclass::finish() {
@@ -191,73 +229,5 @@ void QueueSubclass::finish() {
 }
 
 
-
-//#include "QueueSubclass.h"
-//#include "Queue.h"
-//
-//
-//Define_Module(QueueSubclass);
-//
-//
-//QueueSubclass::QueueSubclass() {
-//    jobServiced = nullptr;
-//    wifiStatusMsg = nullptr;
-//}
-//
-//QueueSubclass::~QueueSubclass() {
-//    delete jobServiced;
-//    cancelAndDelete(wifiStatusMsg);
-//}
-//
-//void QueueSubclass::initialize() {
-//    Queue::initialize();
-//
-//    wifiAvailable = true;
-//    wifiStatusMsg = new cMessage("wifi_status_changed");
-//    simtime_t changeStatusTime = par("changeStateDistribution").doubleValue();
-//    scheduleAt(simTime() + changeStatusTime, wifiStatusMsg);
-//
-//    EV << "Called INITIALIZE on QueueSubclass\nInitial wifiAvailable = " << wifiAvailable << "\n";
-//}
-//
-//void QueueSubclass::arrival(Job *job) {
-//    EV << "ARRIVAL for " << job << "\n";
-//}
-//
-//simtime_t QueueSubclass::startService(Job *job) {
-//    EV << "START_SERVICE for " << job << "\n";
-//    return par("serviceTime").doubleValue();
-//}
-//
-//void QueueSubclass::endService(Job *job) {
-//    EV << "END_SERVICE for " << job << "\n";
-//    send(job, "out");
-//}
-//
-//void QueueSubclass::handleMessage(cMessage *msg) {
-//    if (msg == wifiStatusMsg) {
-//        wifiAvailable = !wifiAvailable;
-//        simtime_t changeStatusTime = par("changeStateDistribution").doubleValue();
-//        scheduleAt(simTime() + changeStatusTime, wifiStatusMsg);
-//        EV << "WIFI STATUS CHANGED! Now is " << wifiAvailable << "\n";
-//    }
-//    else {
-//        Job *job = check_and_cast<Job *>(msg);
-//        arrival(job);
-//
-//        if (!servicedJob) {
-//            servicedJob = job;
-//            emit(busySignal, true);
-//
-//            simtime_t serviceTime = startService(servicedJob);
-//            scheduleAt(simTime() + serviceTime, endServiceMsg);
-//        }
-//        else {
-//            queue.insert(job);
-//            emit(queueLengthSignal, length());
-//            job->setQueueCount(job->getQueueCount() + 1);
-//        }
-//    }
-//}
 
 
