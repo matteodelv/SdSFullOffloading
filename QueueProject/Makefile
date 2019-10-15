@@ -2,7 +2,7 @@
 # OMNeT++/OMNEST Makefile for QueueProject
 #
 # This file was generated with the command:
-#  opp_makemake -f --deep -O out -KQUEUEINGLIB_PROJ=/Users/matteo/omnetpp-5.5.1/samples/queueinglib -DQUEUEING_IMPORT -I. -I$$\(QUEUEINGLIB_PROJ\) -L$$\(QUEUEINGLIB_PROJ\) -lqueueinglib$$\(D\)
+#  opp_makemake -f --deep -O out -KQUEUEINGLIB_PROJ=/home/matteo/omnetpp-5.5.1/samples/queueinglib -DQUEUEING_IMPORT -I. -I$$\(QUEUEINGLIB_PROJ\) -L$$\(QUEUEINGLIB_PROJ\) -lqueueinglib$$\(D\)
 #
 
 # Name of target to be created (-o option)
@@ -39,7 +39,7 @@ MSGFILES =
 SMFILES =
 
 # Other makefile variables (-K)
-QUEUEINGLIB_PROJ=/Users/matteo/omnetpp-5.5.1/samples/queueinglib
+QUEUEINGLIB_PROJ=/home/matteo/omnetpp-5.5.1/samples/queueinglib
 
 #------------------------------------------------------------------------------
 

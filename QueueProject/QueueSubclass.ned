@@ -37,6 +37,7 @@ simple QueueSubclass
         volatile double serviceTime @unit(s);
         
         volatile double changeStateDistribution @unit(s);
+        volatile double deadlineDistribution @unit(s);
     gates:
         input in[];
         output out;

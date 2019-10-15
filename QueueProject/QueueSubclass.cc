@@ -58,7 +58,12 @@ void QueueSubclass::initialize() {
 }
 
 void QueueSubclass::handleMessage(cMessage *msg) {
-    if (msg == wifiStatusMsg) {
+    std::string jobName = msg->getName();
+    if (jobName.std::string::compare("deadline_reached") == 0) {
+        EV << "DEADLINE REACHED!" << endl;
+        EV << "Message par list: " << msg->getParList() << endl;
+    }
+    else if (msg == wifiStatusMsg) {
         wifiAvailable = !wifiAvailable;
         EV << "WIFI STATUS CHANGED! Now is " << (wifiAvailable ? "ON" : "OFF") << "\n";
 
@@ -97,7 +102,6 @@ void QueueSubclass::handleMessage(cMessage *msg) {
                 // Do nothing
             }
         }
-
 
     }
     else if (msg == endServiceMsg) {
@@ -182,6 +186,16 @@ int QueueSubclass::length() {
 
 void QueueSubclass::arrival(Job *job) {
     job->setTimestamp();
+
+    // WIFI is OFF so add deadline to jobs
+    if (!wifiAvailable) {
+        cMessage *deadline = new cMessage("deadline_reached");
+        deadline->addObject(job->dup());
+        simtime_t deadlineLength = par("deadlineDistribution").doubleValue();
+        simtime_t deadlineTime = simTime() + deadlineLength;
+        EV << "Deadline set for job " << job << "; firing time: " << deadlineTime << endl;
+        scheduleAt(deadlineTime, deadline);
+    }
 }
 
 simtime_t QueueSubclass::startService(Job *job) {
