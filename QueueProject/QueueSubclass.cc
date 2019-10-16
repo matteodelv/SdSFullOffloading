@@ -7,6 +7,7 @@
 
 #include "QueueSubclass.h"
 #include "Job.h"
+#include "DeadlineReached_m.h"
 //#include "OffloadedJob.h"
 
 Define_Module(QueueSubclass);
@@ -54,6 +55,8 @@ void QueueSubclass::initialize() {
     wifiStatusMsg = new cMessage("wifi_status_changed");
     updateNextStatusChangeTime();
 
+    clonedJob = nullptr;
+
     EV << "Called INITIALIZE on QueueSubclass\nInitial wifiAvailable = " << (wifiAvailable ? "ON" : "OFF") << "\n";
 }
 
@@ -61,7 +64,24 @@ void QueueSubclass::handleMessage(cMessage *msg) {
     std::string jobName = msg->getName();
     if (jobName.std::string::compare("deadline_reached") == 0) {
         EV << "DEADLINE REACHED!" << endl;
-        EV << "Message par list: " << msg->getParList() << endl;
+        EV << "msg: " << msg << " - Address: " << &msg << endl;
+        EV << "par list: " << msg->getParList() << endl;
+        cObject *addr = msg->getObject("jobObject");
+        cMsgPar *par = check_and_cast<cMsgPar *>(addr);
+        //cMsgPar *gotObj = new cMsgPar(p);
+        EV << "Associated object at receiving: " << par->getObjectValue() << endl;
+//        DeadlineReached *deadlineMsg = check_and_cast<DeadlineReached *>(msg);
+//        EV << "deadlineMsg: " << deadlineMsg << " - Address: " << &deadlineMsg << endl;
+//        //EV << &deadlineMsg << endl;
+//        //EV << deadlineMsg << endl;
+//        //EV << &(deadlineMsg->getAssociatedJob()) << endl;
+//        //EV << deadlineMsg->getAssociatedJob() << endl;
+//        EV << "associatedJob: " << deadlineMsg->getAssociatedJob() << " - Address: " << &(deadlineMsg->getAssociatedJob()) << endl;
+////        Job *job = check_and_cast<Job *>(&(deadlineMsg->getAssociatedJob()));
+////        EV << "Message par list: " << job << " - " << job->getName() << endl;
+//        Job *pointer = &(deadlineMsg->getAssociatedJob());
+//        Job *aJob = check_and_cast<Job *>(pointer);
+//        EV << "converted job: " << aJob << " - name: " << aJob->getName() << endl;
     }
     else if (msg == wifiStatusMsg) {
         wifiAvailable = !wifiAvailable;
@@ -126,6 +146,7 @@ void QueueSubclass::handleMessage(cMessage *msg) {
     else {
         //OffloadedJob *job = check_and_cast<OffloadedJob *>(msg);
         Job *job = check_and_cast<Job *>(msg);
+        EV << "This job is going to arrive: " << job << endl;
         arrival(job);
 
         if (wifiAvailable) {
@@ -159,6 +180,14 @@ void QueueSubclass::handleMessage(cMessage *msg) {
             queue.insert(job);
             emit(queueLengthSignal, length());
             job->setQueueCount(job->getQueueCount() + 1);
+
+//            DeadlineReached *deadlineMsg = new DeadlineReached("deadline_reached");
+//            deadlineMsg->setAssociatedJob(*job);
+//            EV << "DeadlineMsg: " << deadlineMsg;
+//            simtime_t deadlineLength = par("deadlineDistribution").doubleValue();
+//            simtime_t deadlineTime = simTime() + deadlineLength;
+//            EV << "Deadline set for job " << job << "; firing time: " << deadlineTime << endl;
+//            scheduleAt(deadlineTime, deadlineMsg);
         }
     }
 }
@@ -185,16 +214,30 @@ int QueueSubclass::length() {
 }
 
 void QueueSubclass::arrival(Job *job) {
+    EV << "This job arrived: " << job << endl;
     job->setTimestamp();
 
     // WIFI is OFF so add deadline to jobs
     if (!wifiAvailable) {
-        cMessage *deadline = new cMessage("deadline_reached");
-        deadline->addObject(job->dup());
+        cMsgPar *obj = new cMsgPar("jobObject");
+        obj->setObjectValue(job);
+        cMessage *deadlineMsg = new cMessage("deadline_reached");
+        deadlineMsg->addPar(obj);
+        EV << "Associated object at creation: " << job << endl;
+        //EV << "!wifiAvailable job: " << job << " - " << job->getName() << endl;
+//        DeadlineReached *deadlineMsg = new DeadlineReached("deadline_reached");
+        //Job *dup = job->dup();
+        //dup->setName(job->getName());
+        //EV << "after setName: job name: " << job->getName() << " - dup: " << dup->getName() << endl;
+//        deadlineMsg->setAssociatedJob(*job);
+//        EV << "deadlineMsg: " << deadlineMsg << " - Address: " << &deadlineMsg << endl;
+//        EV << "associatedJob: " << deadlineMsg->getAssociatedJob() << " - Address: " << &(deadlineMsg->getAssociatedJob()) << endl;
+//        cMessage *deadline = new cMessage("deadline_reached");
+//        deadline->addObject(job->dup());
         simtime_t deadlineLength = par("deadlineDistribution").doubleValue();
         simtime_t deadlineTime = simTime() + deadlineLength;
         EV << "Deadline set for job " << job << "; firing time: " << deadlineTime << endl;
-        scheduleAt(deadlineTime, deadline);
+        scheduleAt(deadlineTime, deadlineMsg);
     }
 }
 

@@ -30,10 +30,11 @@ PROJECTRELATIVE_PATH =
 O = $(PROJECT_OUTPUT_DIR)/$(CONFIGNAME)/$(PROJECTRELATIVE_PATH)
 
 # Object files for local .cc, .msg and .sm files
-OBJS = $O/QueueSubclass.o
+OBJS = $O/QueueSubclass.o $O/DeadlineReached_m.o
 
 # Message files
-MSGFILES =
+MSGFILES = \
+    DeadlineReached.msg
 
 # SM files
 SMFILES =

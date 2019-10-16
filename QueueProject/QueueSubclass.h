@@ -42,6 +42,8 @@ private:
     bool endsBeforeNextStatusChange(simtime_t endTime);
     void updateNextStatusChangeTime();
 
+    Job *clonedJob;
+
 public:
     QueueSubclass();
     virtual ~QueueSubclass();
