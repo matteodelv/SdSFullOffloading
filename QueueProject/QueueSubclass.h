@@ -39,10 +39,7 @@ private:
     simtime_t nextStatusChangeTime;
     simtime_t curJobServiceTime = SIMTIME_ZERO;
 
-    bool endsBeforeNextStatusChange(simtime_t endTime);
     void updateNextStatusChangeTime();
-
-    Job *clonedJob;
 
 public:
     QueueSubclass();

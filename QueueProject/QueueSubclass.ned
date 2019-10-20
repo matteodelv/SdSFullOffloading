@@ -38,6 +38,9 @@ simple QueueSubclass
         
         volatile double changeStateDistribution @unit(s);
         volatile double deadlineDistribution @unit(s);
+        
+        volatile double wifiStateDistribution @unit(s);
+        volatile double cellularStateDistribution @unit(s);
     gates:
         input in[];
         output out;

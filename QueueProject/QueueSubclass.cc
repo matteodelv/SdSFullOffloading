@@ -12,12 +12,9 @@
 
 Define_Module(QueueSubclass);
 
-bool QueueSubclass::endsBeforeNextStatusChange(simtime_t endTime) {
-    return (endTime <= nextStatusChangeTime) ? true : false;
-}
-
 void QueueSubclass::updateNextStatusChangeTime() {
-    simtime_t nextChange = par("changeStateDistribution").doubleValue();
+    //simtime_t nextChange = par("changeStateDistribution").doubleValue();
+    simtime_t nextChange = (wifiAvailable) ? par("wifiStateDistribution").doubleValue() : par("cellularStateDistribution").doubleValue();
     nextStatusChangeTime = simTime() + nextChange;
     scheduleAt(nextStatusChangeTime, wifiStatusMsg);
     EV << "Next WIFI status change time: " << nextStatusChangeTime << endl;
@@ -55,33 +52,41 @@ void QueueSubclass::initialize() {
     wifiStatusMsg = new cMessage("wifi_status_changed");
     updateNextStatusChangeTime();
 
-    clonedJob = nullptr;
-
     EV << "Called INITIALIZE on QueueSubclass\nInitial wifiAvailable = " << (wifiAvailable ? "ON" : "OFF") << "\n";
 }
 
 void QueueSubclass::handleMessage(cMessage *msg) {
     std::string jobName = msg->getName();
     if (jobName.std::string::compare("deadline_reached") == 0) {
-        EV << "DEADLINE REACHED!" << endl;
-        EV << "msg: " << msg << " - Address: " << &msg << endl;
-        EV << "par list: " << msg->getParList() << endl;
-        cObject *addr = msg->getObject("jobObject");
-        cMsgPar *par = check_and_cast<cMsgPar *>(addr);
-        //cMsgPar *gotObj = new cMsgPar(p);
-        EV << "Associated object at receiving: " << par->getObjectValue() << endl;
-//        DeadlineReached *deadlineMsg = check_and_cast<DeadlineReached *>(msg);
-//        EV << "deadlineMsg: " << deadlineMsg << " - Address: " << &deadlineMsg << endl;
-//        //EV << &deadlineMsg << endl;
-//        //EV << deadlineMsg << endl;
-//        //EV << &(deadlineMsg->getAssociatedJob()) << endl;
-//        //EV << deadlineMsg->getAssociatedJob() << endl;
-//        EV << "associatedJob: " << deadlineMsg->getAssociatedJob() << " - Address: " << &(deadlineMsg->getAssociatedJob()) << endl;
-////        Job *job = check_and_cast<Job *>(&(deadlineMsg->getAssociatedJob()));
-////        EV << "Message par list: " << job << " - " << job->getName() << endl;
-//        Job *pointer = &(deadlineMsg->getAssociatedJob());
-//        Job *aJob = check_and_cast<Job *>(pointer);
-//        EV << "converted job: " << aJob << " - name: " << aJob->getName() << endl;
+        if (msg->getContextPointer()) {
+            //Job *job = check_and_cast<Job *>(msg->getContextPointer());
+            Job *job = (Job *)msg->getContextPointer();
+            EV << "DEADLINE REACHED! Associated job: " << job << endl;
+            msg->setContextPointer(nullptr);
+
+            if (hasGUI()) {
+                std::string text = std::string(job->getName()) + std::string(" dropped");
+                bubble(text.c_str());
+            }
+
+            //cancelAndDelete(msg);
+        }
+        else
+            EV << "DEADLINE REACHED!" << endl;
+
+//        cObject *addr = msg->getObject("jobObject");
+//        cMsgPar *par = check_and_cast<cMsgPar *>(addr);
+//        Job *associatedJob = check_and_cast<Job *>(par->getObjectValue());
+//        EV << "Associated object at receiving: " << associatedJob << endl;
+//
+//        if (hasGUI()) {
+//            std::string text = std::string(associatedJob->getName()) + std::string(" sent to Cellular");
+//            bubble(text.c_str());
+//        }
+
+        //msg->removeObject(par);
+        //delete msg;
+        //cancelAndDelete(msg);
     }
     else if (msg == wifiStatusMsg) {
         wifiAvailable = !wifiAvailable;
@@ -144,9 +149,7 @@ void QueueSubclass::handleMessage(cMessage *msg) {
         }
     }
     else {
-        //OffloadedJob *job = check_and_cast<OffloadedJob *>(msg);
         Job *job = check_and_cast<Job *>(msg);
-        EV << "This job is going to arrive: " << job << endl;
         arrival(job);
 
         if (wifiAvailable) {
@@ -180,21 +183,12 @@ void QueueSubclass::handleMessage(cMessage *msg) {
             queue.insert(job);
             emit(queueLengthSignal, length());
             job->setQueueCount(job->getQueueCount() + 1);
-
-//            DeadlineReached *deadlineMsg = new DeadlineReached("deadline_reached");
-//            deadlineMsg->setAssociatedJob(*job);
-//            EV << "DeadlineMsg: " << deadlineMsg;
-//            simtime_t deadlineLength = par("deadlineDistribution").doubleValue();
-//            simtime_t deadlineTime = simTime() + deadlineLength;
-//            EV << "Deadline set for job " << job << "; firing time: " << deadlineTime << endl;
-//            scheduleAt(deadlineTime, deadlineMsg);
         }
     }
 }
 
 void QueueSubclass::refreshDisplay() const {
     getDisplayString().setTagArg("i2", 0, servicedJob ? "status/execute" : "");
-    //getDisplayString().setTagArg("i", 1, queue.isEmpty() ? "" : "cyan");
     getDisplayString().setTagArg("i", 1, wifiAvailable ? (queue.isEmpty() ? "" : "cyan") : "red");
 }
 
@@ -214,26 +208,24 @@ int QueueSubclass::length() {
 }
 
 void QueueSubclass::arrival(Job *job) {
-    EV << "This job arrived: " << job << endl;
     job->setTimestamp();
 
     // WIFI is OFF so add deadline to jobs
     if (!wifiAvailable) {
-        cMsgPar *obj = new cMsgPar("jobObject");
-        obj->setObjectValue(job);
+        // Add job reference to deadline
+        //cMsgPar *obj = new cMsgPar("jobObject");
+        //obj->setObjectValue(job);
         cMessage *deadlineMsg = new cMessage("deadline_reached");
-        deadlineMsg->addPar(obj);
-        EV << "Associated object at creation: " << job << endl;
-        //EV << "!wifiAvailable job: " << job << " - " << job->getName() << endl;
-//        DeadlineReached *deadlineMsg = new DeadlineReached("deadline_reached");
-        //Job *dup = job->dup();
-        //dup->setName(job->getName());
-        //EV << "after setName: job name: " << job->getName() << " - dup: " << dup->getName() << endl;
-//        deadlineMsg->setAssociatedJob(*job);
-//        EV << "deadlineMsg: " << deadlineMsg << " - Address: " << &deadlineMsg << endl;
-//        EV << "associatedJob: " << deadlineMsg->getAssociatedJob() << " - Address: " << &(deadlineMsg->getAssociatedJob()) << endl;
-//        cMessage *deadline = new cMessage("deadline_reached");
-//        deadline->addObject(job->dup());
+        deadlineMsg->setContextPointer(job->dup());
+        //deadlineMsg->addPar(obj);
+
+        // Adding deadline reference to job object
+        //cMsgPar *deadline = new cMsgPar("deadlineObject");
+        //deadline->setObjectValue(deadlineMsg);
+        //job->addPar(deadline);
+        job->setContextPointer(deadlineMsg);
+
+        //EV << "Associated object at creation: " << job << endl;
         simtime_t deadlineLength = par("deadlineDistribution").doubleValue();
         simtime_t deadlineTime = simTime() + deadlineLength;
         EV << "Deadline set for job " << job << "; firing time: " << deadlineTime << endl;
@@ -252,6 +244,28 @@ simtime_t QueueSubclass::startService(Job *job) {
 
 void QueueSubclass::endService(Job *job) {
     EV << "Finishing service of " << job->getName() << endl;
+
+    if (job->getContextPointer()) {
+        cMessage *deadlineMsg = (cMessage *)job->getContextPointer();
+        if (deadlineMsg->isScheduled())
+        //    delete deadlineMsg;
+            cancelAndDelete(deadlineMsg);
+//        EV << "Found previously scheduled deadline: " << deadlineMsg << " - Removing it..." << endl;
+//        cancelEvent(deadlineMsg);
+        job->setContextPointer(nullptr);
+    }
+
+    // Check if job had a deadline associated
+//    if (job->hasPar("deadlineObject")) {
+//        cObject *addr = job->getObject("deadlineObject");
+//        cMsgPar *par = check_and_cast<cMsgPar *>(addr);
+//        cMessage *deadline = check_and_cast<cMessage *>(par->getObjectValue());
+//        EV << "Found previously scheduled deadline: " << deadline << " - Removing it..." << endl;
+//        //job->removeObject(par);
+//        //cancelAndDelete(deadline);
+//        cancelEvent(deadline);
+//        job->removeObject("deadlineObject");
+//    }
     simtime_t d = simTime() - job->getTimestamp();
     job->setTotalServiceTime(job->getTotalServiceTime() + d);
     send(job, "out");
@@ -264,6 +278,13 @@ void QueueSubclass::suspendService(Job *job) {
     simtime_t elapsedTime = simTime() - startTime;
     simtime_t remainingTime = curJobServiceTime - elapsedTime;
     scheduleAt(nextStatusChangeTime + remainingTime, endServiceMsg);
+
+//    if (job->hasPar("deadlineObject")) {
+//        cObject *addr = job->getObject("deadlineObject");
+//        cMsgPar *par = check_and_cast<cMsgPar *>(addr);
+//
+//    }
+
     job->setTimestamp();
     suspendedJob = job;
     servicedJob = nullptr;
