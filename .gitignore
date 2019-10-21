@@ -6,6 +6,7 @@ out/
 SdSFullOffloading
 #*.xml
 *_dbg
+core
 
 # Check if should be tracked (seems not for now)
 #.cproject
