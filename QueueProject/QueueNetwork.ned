@@ -15,6 +15,7 @@
 
 import org.omnetpp.queueing.Source;
 import org.omnetpp.queueing.Sink;
+import org.omnetpp.queueing.Queue;
 
 network QueueNetwork
 {
@@ -22,15 +23,24 @@ network QueueNetwork
         sink: Sink {
             @display("p=351,120");
         }
-        queue: QueueSubclass {
-            @display("p=185,97");
+        wifiQueue: QueueSubclass {
+            @display("p=168,192");
+        }
+        cellularQueue: Queue {
+            @display("p=225,65");
+        }
+        remoteQueue: Queue {
+            @display("p=288,192");
         }
         source: Source {
-
             @display("p=69,159");
         }
     connections:
-        source.out --> queue.in++;
+        source.out --> wifiQueue.in++;
         //queue.out --> {  datarate = 2Mbps; } --> sink.in++;
-        queue.out --> sink.in++;
+        wifiQueue.out[1] --> remoteQueue.in++;
+        wifiQueue.out[0] --> cellularQueue.in++;
+        cellularQueue.out --> remoteQueue.in++;
+        remoteQueue.out --> sink.in++;
+
 }

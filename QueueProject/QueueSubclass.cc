@@ -7,13 +7,11 @@
 
 #include "QueueSubclass.h"
 #include "Job.h"
-#include "DeadlineReached_m.h"
 //#include "OffloadedJob.h"
 
 Define_Module(QueueSubclass);
 
 void QueueSubclass::updateNextStatusChangeTime() {
-    //simtime_t nextChange = par("changeStateDistribution").doubleValue();
     simtime_t nextChange = (wifiAvailable) ? par("wifiStateDistribution").doubleValue() : par("cellularStateDistribution").doubleValue();
     nextStatusChangeTime = simTime() + nextChange;
     scheduleAt(nextStatusChangeTime, wifiStatusMsg);
@@ -67,7 +65,11 @@ void QueueSubclass::handleMessage(cMessage *msg) {
                 std::string text = std::string(job->getName()) + std::string(" dropped");
                 bubble(text.c_str());
             }
-            send(job, "out");
+
+            queue.remove(job);
+            emit(queueLengthSignal, length());
+            send(job, "out", 0);
+            delete msg;
         }
         else
             EV << "DEADLINE REACHED!" << endl;
@@ -84,7 +86,7 @@ void QueueSubclass::handleMessage(cMessage *msg) {
                 Job *job = check_and_cast<Job *>(*it);
                 if (job->getContextPointer()) {
                     cMessage *deadlineMsg = (cMessage *)job->getContextPointer();
-                    if (deadlineMsg->isScheduled())
+                    //if (deadlineMsg->isScheduled())
                         cancelAndDelete(deadlineMsg);
                     job->setContextPointer(nullptr);
                     EV << "Deleted scheduled deadline for " << job << endl;
@@ -210,7 +212,7 @@ void QueueSubclass::arrival(Job *job) {
     // WIFI is OFF so add deadline to jobs
     if (!wifiAvailable) {
         cMessage *deadlineMsg = new cMessage("deadline_reached");
-        deadlineMsg->setContextPointer(job->dup());
+        deadlineMsg->setContextPointer(job);
         job->setContextPointer(deadlineMsg);
 
         simtime_t deadlineLength = par("deadlineDistribution").doubleValue();
@@ -234,14 +236,14 @@ void QueueSubclass::endService(Job *job) {
 
     if (job->getContextPointer()) {
         cMessage *deadlineMsg = (cMessage *)job->getContextPointer();
-        if (deadlineMsg->isScheduled())
+        //if (deadlineMsg->isScheduled())
             cancelAndDelete(deadlineMsg);
         job->setContextPointer(nullptr);
     }
 
     simtime_t d = simTime() - job->getTimestamp();
     job->setTotalServiceTime(job->getTotalServiceTime() + d);
-    send(job, "out");
+    send(job, "out", 1);
 }
 
 void QueueSubclass::suspendService(Job *job) {
