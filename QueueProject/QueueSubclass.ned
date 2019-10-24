@@ -39,6 +39,7 @@ simple QueueSubclass
         volatile double deadlineDistribution @unit(s);
         volatile double wifiStateDistribution @unit(s);
         volatile double cellularStateDistribution @unit(s);
+        int policyType = default(1);
     gates:
         input in[];
         output out[2];

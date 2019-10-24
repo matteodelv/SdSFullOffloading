@@ -21,19 +21,19 @@ network QueueNetwork
 {
     submodules:
         sink: Sink {
-            @display("p=351,120");
+            @display("p=364,167");
         }
         wifiQueue: QueueSubclass {
-            @display("p=168,192");
+            @display("p=140,136");
         }
         cellularQueue: Queue {
-            @display("p=225,65");
+            @display("p=259,57");
         }
         remoteQueue: Queue {
-            @display("p=288,192");
+            @display("p=259,187");
         }
         source: Source {
-            @display("p=69,159");
+            @display("p=50,72");
         }
     connections:
         source.out --> wifiQueue.in++;

@@ -39,7 +39,7 @@ private:
     simtime_t nextStatusChangeTime;
     simtime_t curJobServiceTime = SIMTIME_ZERO;
 
-    void updateNextStatusChangeTime();
+    void updateNextStatusChangeTime(simtime_t expWiFiEnd);
 
 public:
     QueueSubclass();
@@ -56,7 +56,7 @@ protected:
     virtual simtime_t startService(Job *job);
     virtual void suspendService(Job *job); // va bene void oppure è meglio ritornare simtime_t?
     virtual void resumeService(Job *job);
-    virtual void endService(Job *job);
+    virtual void endService(Job *job, int outGate);
 };
 
 
