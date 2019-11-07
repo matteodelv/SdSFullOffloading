@@ -20,7 +20,6 @@ void QueueSubclass::updateNextStatusChangeTime(simtime_t expWiFiEnd) {
     nextStatusChangeTime = simTime() + nextChange;
     scheduleAt(nextStatusChangeTime, wifiStatusMsg);
     EV << "Next WIFI status change time: " << nextStatusChangeTime << endl;
-    //EV << "Delta: " << nextChange << " - from " << ((wifiAvailable) ? "WIFI" : "CELLULAR") << endl;
 }
 
 QueueSubclass::QueueSubclass() {
@@ -99,13 +98,6 @@ void QueueSubclass::handleMessage(cMessage *msg) {
                 send(job, "out", 0);
                 delete msg;
             }
-
-//            if (hasGUI()) {
-//                std::string text = std::string(job->getName()) + std::string(" dropped");
-//                bubble(text.c_str());
-//            }
-
-
         }
         else
             EV << "DEADLINE REACHED!" << endl;
@@ -143,7 +135,6 @@ void QueueSubclass::handleMessage(cMessage *msg) {
                         simtime_t prevSchedTime = deadlineMsg->getArrivalTime();
                         if (deadlineMsg->isScheduled())
                             cancelEvent(deadlineMsg);
-                        //scheduleAt(prevSchedTime + wifiDeltaTime, deadlineMsg);
                         simtime_t shiftedTime = prevSchedTime + nextWiFiEnd;
                         scheduleAt(shiftedTime, deadlineMsg);
                         job->setContextPointer(deadlineMsg);
@@ -179,11 +170,9 @@ void QueueSubclass::handleMessage(cMessage *msg) {
         // wifi ON -> OFF
         else {
             updateNextStatusChangeTime(SIMTIME_ZERO);
+
             if (servicedJob) {
                 suspendService(servicedJob);
-            }
-            else {
-                // Do nothing
             }
         }
 

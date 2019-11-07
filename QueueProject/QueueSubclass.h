@@ -54,7 +54,7 @@ protected:
 
     virtual void arrival(Job *job);
     virtual simtime_t startService(Job *job);
-    virtual void suspendService(Job *job); // va bene void oppure è meglio ritornare simtime_t?
+    virtual void suspendService(Job *job);
     virtual void resumeService(Job *job);
     virtual void endService(Job *job, int outGate);
 };
