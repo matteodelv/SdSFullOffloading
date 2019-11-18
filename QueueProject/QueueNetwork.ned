@@ -1,4 +1,4 @@
-//
++//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -15,7 +15,6 @@
 
 import org.omnetpp.queueing.Source;
 import org.omnetpp.queueing.Sink;
-import org.omnetpp.queueing.Queue;
 
 network QueueNetwork
 {
@@ -26,18 +25,18 @@ network QueueNetwork
         wifiQueue: OffloadingQueue {
             @display("p=140,136");
         }
-        cellularQueue: Queue {
+        cellularQueue: QueueCustom {
             @display("p=259,57");
         }
-        remoteQueue: Queue {
+        remoteQueue: QueueCustom {
             @display("p=259,187");
+            trackServiceTime = false;
         }
         source: Source {
             @display("p=50,72");
         }
     connections:
         source.out --> wifiQueue.in++;
-        //queue.out --> {  datarate = 2Mbps; } --> sink.in++;
         wifiQueue.out[1] --> remoteQueue.in++;
         wifiQueue.out[0] --> cellularQueue.in++;
         cellularQueue.out --> remoteQueue.in++;

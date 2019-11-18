@@ -224,15 +224,11 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
 
                 queue.insert(job);
                 emit(queueLengthSignal, length());
-                //job->setQueueCount(job->getQueueCount() + 1);
-                //EV << "servicedJob ELSE: " << job << " - queue count: " << job->getQueueCount() << endl;
             }
         }
         else {
             queue.insert(job);
             emit(queueLengthSignal, length());
-            //job->setQueueCount(job->getQueueCount() + 1);
-            //EV << "wifiAvailable ELSE: " << job << " - queue count: " << job->getQueueCount() << endl;
         }
     }
 }
@@ -260,7 +256,7 @@ int OffloadingQueue::length() {
 void OffloadingQueue::arrival(Job *job) {
     job->setTimestamp();
     job->setQueueCount(job->getQueueCount() + 1);
-    EV << this << " - job: " << job << " - queue count: " << job->getQueueCount() << endl;
+    EV << job << " queue count: " << job->getQueueCount() << endl;
 
     // WIFI is OFF so add deadline to jobs
     if (!wifiAvailable) {
@@ -290,9 +286,7 @@ simtime_t OffloadingQueue::startService(Job *job) {
         job->setContextPointer(nullptr);
     }
 
-    simtime_t serviceTime = par("serviceTime").doubleValue();
-    EV << job << " - expected service time: " << serviceTime;
-    return serviceTime;
+    return par("serviceTime").doubleValue();
 }
 
 void OffloadingQueue::endService(Job *job, int gateID) {
