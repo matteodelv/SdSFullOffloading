@@ -5,7 +5,8 @@
  *      Author: matteo
  */
 
-#include "QueueSubclass.h"
+#include "OffloadingQueue.h"
+
 #include "Job.h"
 
 typedef enum {
@@ -13,30 +14,30 @@ typedef enum {
     PolicyTypeShift
 } PolicyType;
 
-Define_Module(QueueSubclass);
+Define_Module(OffloadingQueue);
 
-void QueueSubclass::updateNextStatusChangeTime(simtime_t expWiFiEnd) {
+void OffloadingQueue::updateNextStatusChangeTime(simtime_t expWiFiEnd) {
     simtime_t nextChange = (wifiAvailable) ? expWiFiEnd : par("cellularStateDistribution").doubleValue();
     nextStatusChangeTime = simTime() + nextChange;
     scheduleAt(nextStatusChangeTime, wifiStatusMsg);
     EV << "Next WIFI status change time: " << nextStatusChangeTime << endl;
 }
 
-QueueSubclass::QueueSubclass() {
+OffloadingQueue::OffloadingQueue() {
     servicedJob = nullptr;
     endServiceMsg = nullptr;
     wifiStatusMsg = nullptr;
     suspendedJob = nullptr;
 }
 
-QueueSubclass::~QueueSubclass() {
+OffloadingQueue::~OffloadingQueue() {
     delete servicedJob;
     delete suspendedJob;
     cancelAndDelete(endServiceMsg);
     cancelAndDelete(wifiStatusMsg);
 }
 
-void QueueSubclass::initialize() {
+void OffloadingQueue::initialize() {
     droppedSignal = registerSignal("dropped");
     queueingTimeSignal = registerSignal("queueingTime");
     queueLengthSignal = registerSignal("queueLength");
@@ -57,7 +58,7 @@ void QueueSubclass::initialize() {
     EV << "Called INITIALIZE on QueueSubclass\nInitial wifiAvailable = " << (wifiAvailable ? "ON" : "OFF") << "\n";
 }
 
-void QueueSubclass::handleMessage(cMessage *msg) {
+void OffloadingQueue::handleMessage(cMessage *msg) {
     std::string jobName = msg->getName();
     if (jobName.std::string::compare("deadline_reached") == 0) {
         if (msg->getContextPointer()) {
@@ -223,23 +224,25 @@ void QueueSubclass::handleMessage(cMessage *msg) {
 
                 queue.insert(job);
                 emit(queueLengthSignal, length());
-                job->setQueueCount(job->getQueueCount() + 1);
+                //job->setQueueCount(job->getQueueCount() + 1);
+                //EV << "servicedJob ELSE: " << job << " - queue count: " << job->getQueueCount() << endl;
             }
         }
         else {
             queue.insert(job);
             emit(queueLengthSignal, length());
-            job->setQueueCount(job->getQueueCount() + 1);
+            //job->setQueueCount(job->getQueueCount() + 1);
+            //EV << "wifiAvailable ELSE: " << job << " - queue count: " << job->getQueueCount() << endl;
         }
     }
 }
 
-void QueueSubclass::refreshDisplay() const {
+void OffloadingQueue::refreshDisplay() const {
     getDisplayString().setTagArg("i2", 0, servicedJob ? "status/execute" : "");
     getDisplayString().setTagArg("i", 1, wifiAvailable ? (queue.isEmpty() ? "" : "cyan") : "red");
 }
 
-Job* QueueSubclass::getFromQueue() {
+Job* OffloadingQueue::getFromQueue() {
     Job *job;
     if (fifo)
         job = (Job *)queue.pop();
@@ -250,12 +253,14 @@ Job* QueueSubclass::getFromQueue() {
     return job;
 }
 
-int QueueSubclass::length() {
+int OffloadingQueue::length() {
     return queue.getLength();
 }
 
-void QueueSubclass::arrival(Job *job) {
+void OffloadingQueue::arrival(Job *job) {
     job->setTimestamp();
+    job->setQueueCount(job->getQueueCount() + 1);
+    EV << this << " - job: " << job << " - queue count: " << job->getQueueCount() << endl;
 
     // WIFI is OFF so add deadline to jobs
     if (!wifiAvailable) {
@@ -270,7 +275,7 @@ void QueueSubclass::arrival(Job *job) {
     }
 }
 
-simtime_t QueueSubclass::startService(Job *job) {
+simtime_t OffloadingQueue::startService(Job *job) {
     simtime_t d = simTime() - job->getTimestamp();
     emit(queueingTimeSignal, d);
     job->setTotalQueueingTime(job->getTotalQueueingTime() + d);
@@ -285,10 +290,12 @@ simtime_t QueueSubclass::startService(Job *job) {
         job->setContextPointer(nullptr);
     }
 
-    return par("serviceTime").doubleValue();
+    simtime_t serviceTime = par("serviceTime").doubleValue();
+    EV << job << " - expected service time: " << serviceTime;
+    return serviceTime;
 }
 
-void QueueSubclass::endService(Job *job, int gateID) {
+void OffloadingQueue::endService(Job *job, int gateID) {
     EV << "Finishing service of " << job->getName() << endl;
 
     simtime_t d = simTime() - job->getTimestamp();
@@ -296,13 +303,13 @@ void QueueSubclass::endService(Job *job, int gateID) {
     send(job, "out", gateID);
 }
 
-void QueueSubclass::suspendService(Job *job) {
-    // TODO: non considerare i tempi di sospensione come serviceTime
+void OffloadingQueue::suspendService(Job *job) {
     cancelEvent(endServiceMsg);
     simtime_t startTime = job->getTimestamp();
     simtime_t elapsedTime = simTime() - startTime;
     simtime_t remainingTime = curJobServiceTime - elapsedTime;
     scheduleAt(nextStatusChangeTime + remainingTime, endServiceMsg);
+    job->setTotalServiceTime(job->getTotalServiceTime() + elapsedTime);
 
     job->setTimestamp();
     suspendedJob = job;
@@ -313,7 +320,7 @@ void QueueSubclass::suspendService(Job *job) {
     EV << "New scheduleAt time: " << nextStatusChangeTime + remainingTime << endl;
 }
 
-void QueueSubclass::resumeService(Job *job) {
+void OffloadingQueue::resumeService(Job *job) {
     job->setTimestamp();
     servicedJob = job;
     suspendedJob = nullptr;
@@ -321,7 +328,7 @@ void QueueSubclass::resumeService(Job *job) {
     EV << "Current time: " << simTime() << endl;
 }
 
-void QueueSubclass::finish() {
+void OffloadingQueue::finish() {
 
 }
 

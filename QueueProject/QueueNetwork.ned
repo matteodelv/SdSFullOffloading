@@ -23,7 +23,7 @@ network QueueNetwork
         sink: Sink {
             @display("p=364,167");
         }
-        wifiQueue: QueueSubclass {
+        wifiQueue: OffloadingQueue {
             @display("p=140,136");
         }
         cellularQueue: Queue {

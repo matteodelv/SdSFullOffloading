@@ -5,8 +5,8 @@
  *      Author: matteo
  */
 
-#ifndef QUEUESUBCLASS_H_
-#define QUEUESUBCLASS_H_
+#ifndef OFFLOADINGQUEUE_H_
+#define OFFLOADINGQUEUE_H_
 
 #include "QueueingDefs.h"
 #include "Queue.h"
@@ -17,7 +17,7 @@ using namespace queueing;
 //class Job;
 
 
-class QUEUEING_API QueueSubclass : public cSimpleModule {
+class QUEUEING_API OffloadingQueue : public cSimpleModule {
 private:
     simsignal_t droppedSignal;
     simsignal_t queueLengthSignal;
@@ -42,8 +42,8 @@ private:
     void updateNextStatusChangeTime(simtime_t expWiFiEnd);
 
 public:
-    QueueSubclass();
-    virtual ~QueueSubclass();
+    OffloadingQueue();
+    virtual ~OffloadingQueue();
     int length();
 
 protected:
@@ -61,4 +61,4 @@ protected:
 
 
 
-#endif /* QUEUESUBCLASS_H_ */
+#endif /* OFFLOADINGQUEUE_H_ */
