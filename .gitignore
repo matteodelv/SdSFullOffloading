@@ -7,6 +7,7 @@ SdSFullOffloading
 #*.xml
 *_dbg
 core
+__pycache__
 
 # Check if should be tracked (seems not for now)
 #.cproject
