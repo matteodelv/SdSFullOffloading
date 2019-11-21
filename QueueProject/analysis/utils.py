@@ -6,6 +6,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import re
+from pprint import pprint
 
 
 def setupPlots():
@@ -98,6 +99,39 @@ def quantizeData(timeData, valData, step=10.0):
 		quantizedValues.append(np.mean(values))
 	
 	return np.array(quantizedTimes), np.array(quantizedValues)
+
+
+def splitJobsByQueue(timesList, serviceTimes, queuesVals):
+	assert len(timesList) == 2
+	for i in range(2):
+		assert timesList[i].size == serviceTimes.size
+		assert timesList[i].size == queuesVals.size
+	
+	assert np.all((queuesVals == 2) | (queuesVals == 3))
+	assert np.array_equal(timesList[0], timesList[1])
+	
+	timesReshaped = timesList[0].reshape(-1, 1)
+	serviceTimesReshaped = serviceTimes.reshape(-1, 1)
+	queuesValsReshaped = queuesVals.reshape(-1, 1)
+	dataMatrix = np.concatenate((timesReshaped, serviceTimesReshaped, queuesValsReshaped), axis=1)
+	
+	#dataMatrix = np.array((timesList[0], serviceTimes, queuesVals))
+	
+	assert dataMatrix.shape[0] == serviceTimes.size
+	
+	wifiQueueJobs = dataMatrix[dataMatrix[:,2] == 2]
+	cellularQueueJobs = dataMatrix[dataMatrix[:,2] == 3]
+	
+	assert dataMatrix.size == wifiQueueJobs.size + cellularQueueJobs.size
+	
+	# dropping queuesVisited row
+	wifiQueueJobs = wifiQueueJobs[:,:2]
+	cellularQueueJobs = cellularQueueJobs[:,:2]
+	
+	return wifiQueueJobs, cellularQueueJobs
+	
+	
+	
 
 
 
