@@ -5,52 +5,54 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from utils import loadData, runningAvg, filterData, quantizeData, setupPlots
+from utils import loadData, runningAvg, filterData, quantizeData, setupPlots, plotGraph
 	
 
 def plotMeanServiceTime(data, keys, outputDir, plotMeanOnly=True):
 	for policy in keys["policy"]:
 		for renTime in keys["renegingTime"]:
 			timeValues, values, legends = filterData(data, "totalServiceTime:vector", policy, renTime)
-			for timeData, seedData, label in zip(timeValues, values, legends):
-				runAvgd = runningAvg(seedData)
-				if not plotMeanOnly:
-					plt.plot(timeData, runAvgd, label=label)
-	
-			qTimes, qValues = quantizeData(timeValues, values)
-	
-			plt.plot(qTimes, runningAvg(qValues), label="Averaged on runs")
-			plt.title("policy={} renegingTime={}".format(policy, renTime))
-			plt.xlabel("Simulation Time")
-			plt.ylabel("Mean Job Service Time")
-			plt.legend()
 			
+			qTimes, qValues = quantizeData(timeValues, values)
+			
+			if not plotMeanOnly:
+				timeValues.append(qTimes)
+				values.append(qValues)
+				legends.append("Averaged on runs")
+				values = list(map(lambda l: runningAvg(l), values))
+			else:
+				timeValues = [qTimes]
+				values = [runningAvg(qValues)]
+				legends = ["Averaged on runs"]
+				
+			titles = {
+				"title": "policy={} renegingTime={}".format(policy, renTime),
+				"x": "Simulation Time",
+				"y": "Mean Job Service Time"
+			}
 			fileName = "ServiceTime_{}_{}{}.png".format(policy, renTime, "_averaged" if plotMeanOnly else "")
-			plt.savefig(os.path.join(outputDir, fileName))
-			plt.close()
+			plotGraph(timeValues, values, titles, legends, savePath=os.path.join(outputDir, fileName))
 
 
 def plotMeanQueueLength(data, keys, moduleName, outputDir, plotMeanOnly=True):
 	for policy in keys["policy"]:
 		for renTime in keys["renegingTime"]:
 			timeValues, values, legends = filterData(data, "queueLength:vector", policy, renTime, moduleName)
-			for timeData, seedData, label in zip(timeValues, values, legends):
-				if not plotMeanOnly:
-					plt.plot(timeData, seedData, label=label, drawstyle="steps-post")
 			
 			if plotMeanOnly:
 				qTimes, qValues = quantizeData(timeValues, values, step=200.0)
-				plt.plot(qTimes, qValues, label="Averaged on runs", drawstyle="steps-post")
+				timeValues = [qTimes]
+				values = [qValues]
+				legends = ["Averaged on runs"]
 			
-			title = "{} policy={} renegingTime={}".format(moduleName.replace("QueueNetwork.", ""), policy, renTime)
-			plt.title(title)
-			plt.xlabel("Simulation Time")
-			plt.ylabel("Queue Length")
-			plt.legend()
+			titles = {
+				"title": "{} policy={} renegingTime={}".format(moduleName.replace("QueueNetwork.", ""), policy, renTime),
+				"x": "Simulation Time",
+				"y": "Queue Length"
+			}
 			
 			fileName = "QueueLength_{}_{}_{}{}.png".format(moduleName.replace("QueueNetwork.", ""), policy, renTime, "_averaged" if plotMeanOnly else "")
-			plt.savefig(os.path.join(outputDir, fileName))
-			plt.close()
+			plotGraph(timeValues, values, titles, legends, drawStyle="steps-post", savePath=os.path.join(outputDir, fileName))
 			
 
 if __name__ == "__main__":
@@ -63,9 +65,9 @@ if __name__ == "__main__":
 	
 	data, keys = loadData(args.inputDir)
 	setupPlots()
-	plotMeanServiceTime(data, keys, plotsPath, plotMeanOnly=True)
+	#plotMeanServiceTime(data, keys, plotsPath, plotMeanOnly=False)
 	#plotMeanQueueLength(data, keys, "QueueNetwork.cellularQueue", plotsPath, plotMeanOnly=False)
-	#plotMeanQueueLength(data, keys, "QueueNetwork.wifiQueue", plotsPath, plotMeanOnly=False)
+	plotMeanQueueLength(data, keys, "QueueNetwork.wifiQueue", plotsPath, plotMeanOnly=True)
 
 
 

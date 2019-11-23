@@ -20,6 +20,27 @@ def setupPlots():
 	mpl.rcParams["savefig.dpi"] = 120
 
 
+def plotGraph(xs, ys, titles, legends, scatter=False, drawStyle="default", savePath=None):
+	assert len(xs) == len(ys)
+	assert len(xs) == len(legends)
+	
+	for i in range(len(xs)):
+		if scatter:
+			plt.scatter(xs[i], ys[i], label=legends[i])
+		else:
+			plt.plot(xs[i], ys[i], label=legends[i], drawstyle=drawStyle)
+	
+	plt.title(titles["title"])
+	plt.xlabel(titles["x"])
+	plt.ylabel(titles["y"])
+	plt.legend()
+	if savePath:
+		plt.savefig(savePath)
+		plt.close()
+	else:
+		plt.show()
+
+
 def loadData(inputDir):
 	selectedFiles = []
 	for root, dirs, files in os.walk(inputDir):
