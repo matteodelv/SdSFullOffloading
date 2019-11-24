@@ -41,11 +41,11 @@ def plotGraph(xs, ys, titles, legends, scatter=False, drawStyle="default", saveP
 		plt.show()
 
 
-def loadData(inputDir):
+def loadData(inputDir, config):
 	selectedFiles = []
 	for root, dirs, files in os.walk(inputDir):
 		for file in files:
-			if "SetupAnalysis" in file and file.endswith(".json"):
+			if config in file and file.endswith(".json"):
 				selectedFiles.append(os.path.join(root, file))
 
 	dataDict = {}

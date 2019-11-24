@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-find ../results/ -iname '*.vec' | while read name; do
+config=$1
+name="${config}*.vec"
+find results/ -iname $name | while read name; do
 	out=$(echo $name | sed 's/\.vec//' | sed 's/results/results\/JSON/')
 	echo Exporting $name...
 	#echo out $out
