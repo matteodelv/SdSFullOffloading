@@ -61,6 +61,8 @@ def extractWiFiCellularData(data, keys, saveDir=None):
 
 def computeMeanResponseTime(data, keys):
 	lambdaValue = 0.5
+	responseData = copy.deepcopy(data)
+	
 	for policy in keys["policy"]:
 		for renTime in keys["renegingTime"]:
 			wifiTimes, wifiValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.wifiQueue")
@@ -89,13 +91,64 @@ def computeMeanResponseTime(data, keys):
 				print("REMOTE - policy: {}, renTime: {}, len: {}, mean: {}".format(policy, renTime, len(remValues[i]), np.mean(remValues[i])))
 			print("REMOTE - policy: {}, renTime: {}, AVERAGED MEAN: {}".format(policy, renTime, np.mean(remMeans)))
 			responses.append(np.mean(remMeans))
-			print("MEAN RESPONSE TIME: {} min".format(1/lambdaValue * np.sum(responses)))
+			mrt = 1/lambdaValue * np.sum(responses)
+			print("MEAN RESPONSE TIME: {} min".format(mrt))
 			print()
 			print("----------")
 			print()
+			renTimeKey = "renegingTime=" + renTime
+			policyKey = "policy=" + policy
+			responseData[renTimeKey][policyKey] = mrt
+	return responseData
 			
 			
 			
+def computeMeanEnergyConsumption(data, keys):
+	wifiPowerCoefficient = 0.7
+	cellularPowerCoefficient = 2.5
+	lambdaValue = 0.5
+	energyData = copy.deepcopy(data)
+	
+	for policy in keys["policy"]:
+		for renTime in keys["renegingTime"]:
+			policyKey = "policy=" + policy
+			renTimeKey = "renegingTime=" + renTime
+			
+			wifiAveraged = []
+			cellAveraged = []
+			for seedKey, seedValues in data[renTimeKey][policyKey].items():
+				wifiSerTimes = seedValues["wifi"]["serviceTime"]
+				cellSerTimes = seedValues["cellular"]["serviceTime"]
+				print("policy: {}, renTime: {}, {}, wifi sum: {:.4f}, cell sum: {:.4f}, wifi mean: {:.4f}, cell mean: {:.4f}".format(policy, renTime, seedKey, np.sum(wifiSerTimes), np.sum(cellSerTimes), np.mean(wifiSerTimes), np.mean(cellSerTimes)))
+				wifiAveraged.append(np.sum(wifiSerTimes))
+				cellAveraged.append(np.sum(cellSerTimes))
+			
+			print("policy: {}, renTime: {}, wifi avg sum: {:.4f}, cell avg sum: {:.4f}".format(policy, renTime, np.mean(wifiAveraged), np.mean(cellAveraged)))
+			print("policy: {}, renTime: {}, wifi energy: {:.4f} Joule, cell energy {:.4f} Joule".format(policy, renTime, np.mean(wifiAveraged) * wifiPowerCoefficient, np.mean(cellAveraged) * cellularPowerCoefficient))
+			sumValue = np.mean(wifiAveraged) * wifiPowerCoefficient + np.mean(cellAveraged) * cellularPowerCoefficient
+			mec = 1/lambdaValue * np.sum(sumValue)
+			energyData[renTimeKey][policyKey] = mec
+			print("policy: {}, renTime: {}, Mean Energy Consumption: {} Joule".format(policy, renTime, mec))
+			print()
+	
+	return energyData
+
+
+def computeERWP(responseData, energyData, keys, w=None):
+	if not w:
+		w = [0.5]
+	
+	for policy in keys["policy"]:
+		policyKey = "policy=" + policy
+		for renTime in keys["renegingTime"]:
+			renTimeKey = "renegingTime=" + renTime
+			meanRespTime = responseData[renTimeKey][policyKey]
+			meanEnergyCons = energyData[renTimeKey][policyKey]
+			
+			for exp in w:
+				print("policy: {}, renTime: {} - ERWP with w={}: {}".format(policy, renTime, exp, np.power(meanRespTime, exp) * np.power(meanEnergyCons, 1-exp)))
+		print()
+	
 
 
 if __name__ == "__main__":
@@ -109,7 +162,9 @@ if __name__ == "__main__":
 	data, keys = loadData(args.inputDir, "BatchExecution")
 	setupPlots()
 	wifiCellData = extractWiFiCellularData(data, keys, plotsPath)
-	computeMeanResponseTime(data, keys)
+	responseData = computeMeanResponseTime(data, keys)
+	energyData = computeMeanEnergyConsumption(wifiCellData, keys)
+	computeERWP(responseData, energyData, keys, w=[0.1, 0.5, 0.9])
 	
 	#pp = pprint.PrettyPrinter(depth=3)
 	#pp.pprint(data)
