@@ -59,6 +59,44 @@ def extractWiFiCellularData(data, keys, saveDir=None):
 	return updatedData
 
 
+def computeMeanResponseTime(data, keys):
+	lambdaValue = 0.5
+	for policy in keys["policy"]:
+		for renTime in keys["renegingTime"]:
+			wifiTimes, wifiValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.wifiQueue")
+			cellTimes, cellValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.cellularQueue")
+			remTimes, remValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.remoteQueue")
+			responses = []
+			wifiMeans = []
+			for i in range(len(wifiValues)):
+				wifiMeans.append(np.mean(wifiValues[i]))
+				print("WIFI - policy: {}, renTime: {}, len: {}, mean: {}".format(policy, renTime, len(wifiValues[i]), np.mean(wifiValues[i])))
+			print("WIFI - policy: {}, renTime: {}, AVERAGED MEAN: {}".format(policy, renTime, np.mean(wifiMeans)))
+			responses.append(np.mean(wifiMeans))
+			print()
+			
+			cellMeans = []
+			for i in range(len(cellValues)):
+				cellMeans.append(np.mean(cellValues[i]))
+				print("CELLULAR - policy: {}, renTime: {}, len: {}, mean: {}".format(policy, renTime, len(cellValues[i]), np.mean(cellValues[i])))
+			print("CELLULAR - policy: {}, renTime: {}, AVERAGED MEAN: {}".format(policy, renTime, np.mean(cellMeans)))
+			responses.append(np.mean(cellMeans))
+			print()
+			
+			remMeans = []
+			for i in range(len(remValues)):
+				remMeans.append(np.mean(remValues[i]))
+				print("REMOTE - policy: {}, renTime: {}, len: {}, mean: {}".format(policy, renTime, len(remValues[i]), np.mean(remValues[i])))
+			print("REMOTE - policy: {}, renTime: {}, AVERAGED MEAN: {}".format(policy, renTime, np.mean(remMeans)))
+			responses.append(np.mean(remMeans))
+			print("MEAN RESPONSE TIME: {} min".format(1/lambdaValue * np.sum(responses)))
+			print()
+			print("----------")
+			print()
+			
+			
+			
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
@@ -68,9 +106,10 @@ if __name__ == "__main__":
 	plotsPath = os.path.join(args.outputDir, "plots")
 	os.makedirs(plotsPath, exist_ok=True)
 	
-	data, keys = loadData(args.inputDir)
+	data, keys = loadData(args.inputDir, "BatchExecution")
 	setupPlots()
 	wifiCellData = extractWiFiCellularData(data, keys, plotsPath)
+	computeMeanResponseTime(data, keys)
 	
 	#pp = pprint.PrettyPrinter(depth=3)
 	#pp.pprint(data)
