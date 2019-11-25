@@ -13,7 +13,6 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 //
 
-import org.omnetpp.queueing.Source;
 import org.omnetpp.queueing.Sink;
 
 network QueueNetwork
@@ -32,7 +31,7 @@ network QueueNetwork
             @display("p=259,187");
             trackServiceTime = false;
         }
-        source: Source {
+        source: LimitedSource {
             @display("p=50,72");
         }
     connections:
