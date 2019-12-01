@@ -6,7 +6,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import re
-from pprint import pprint
+import copy
 
 
 def setupPlots():
@@ -20,20 +20,24 @@ def setupPlots():
 	mpl.rcParams["savefig.dpi"] = 120
 
 
-def plotGraph(xs, ys, titles, legends, scatter=False, drawStyle="default", savePath=None):
+def plotGraph(xs, ys, titles, legends=None, ylim=None, scatter=False, drawStyle="default", savePath=None):
 	assert len(xs) == len(ys)
-	assert len(xs) == len(legends)
+	if legends:
+		assert len(xs) == len(legends)
 	
 	for i in range(len(xs)):
 		if scatter:
-			plt.scatter(xs[i], ys[i], label=legends[i])
+			plt.scatter(xs[i], ys[i], label=None if not legends else legends[i], marker="o")
 		else:
-			plt.plot(xs[i], ys[i], label=legends[i], drawstyle=drawStyle)
+			plt.plot(xs[i], ys[i], label=None if not legends else legends[i], drawstyle=drawStyle)
 	
 	plt.title(titles["title"])
 	plt.xlabel(titles["x"])
 	plt.ylabel(titles["y"])
-	plt.legend()
+	if ylim:
+		plt.ylim(ylim[0], ylim[1])
+	if legends:
+		plt.legend()
 	if savePath:
 		plt.savefig(savePath)
 		plt.close()
@@ -41,7 +45,17 @@ def plotGraph(xs, ys, titles, legends, scatter=False, drawStyle="default", saveP
 		plt.show()
 
 
+def getTupleValues(index, data):
+	return list(map(lambda e: e[index], data))
+
+
+def filterTupleValues(index, value, data):
+	return list(filter(lambda e: e[index] == value, data))
+
+
 def loadData(inputDir, config):
+	print("Loading data...")
+	
 	selectedFiles = []
 	for root, dirs, files in os.walk(inputDir):
 		for file in files:
@@ -112,7 +126,12 @@ def quantizeData(timeData, valData, step=10.0):
 	
 	quantizedTimes = []
 	quantizedValues = []
+	
+	count = 0
 	for key in sorted(windowedData.keys()):
+		count += 1
+		if count % 5 == 0:
+			continue
 		valuesList = windowedData[key]
 		times = np.array(list(map(lambda e: e[0], valuesList)))
 		values = np.array(list(map(lambda e: e[1], valuesList)))
@@ -136,8 +155,6 @@ def splitJobsByQueue(timesList, serviceTimes, queuesVals):
 	queuesValsReshaped = queuesVals.reshape(-1, 1)
 	dataMatrix = np.concatenate((timesReshaped, serviceTimesReshaped, queuesValsReshaped), axis=1)
 	
-	#dataMatrix = np.array((timesList[0], serviceTimes, queuesVals))
-	
 	assert dataMatrix.shape[0] == serviceTimes.size
 	
 	wifiQueueJobs = dataMatrix[dataMatrix[:,2] == 2]
@@ -151,7 +168,57 @@ def splitJobsByQueue(timesList, serviceTimes, queuesVals):
 	
 	return wifiQueueJobs, cellularQueueJobs
 	
+
+def extractWiFiCellularData(data, keys, saveDir=None):
+	print("Extracting WiFi and Cellular data...")
 	
+	updatedData = copy.deepcopy(data)
+	for policy in keys["policy"]:
+		for renTime in keys["renegingTime"]:
+			sTimes, serviceTimeValues, legends = filterData(data, "totalServiceTime:vector", policy, renTime)
+			qTimes, queuesVisitedValues, _ = filterData(data, "queuesVisited:vector", policy, renTime)	
+			waTimes, wifiActiveValues, _ = filterData(data, "wifiActiveTime:vector", policy, renTime)
+	
+			wifiTimes = []
+			wifiServiceTimes = []
+			cellularTimes = []
+			cellularServiceTimes = []
+	
+			for i in range(len(sTimes)):
+				wifiJobs, cellularJobs = splitJobsByQueue([sTimes[i], qTimes[i]], serviceTimeValues[i], queuesVisitedValues[i])
+		
+				wifiSeedTime = wifiJobs[:,:1].reshape(-1).tolist()
+				wifiSeedSerTime = wifiJobs[:,1:].reshape(-1).tolist()
+				wifiTimes.append(wifiSeedTime)
+				wifiServiceTimes.append(wifiSeedSerTime)
+		
+				cellSeedTime = cellularJobs[:,:1].reshape(-1).tolist()
+				cellSeedSerTime = cellularJobs[:,1:].reshape(-1).tolist()
+				cellularTimes.append(cellSeedTime)
+				cellularServiceTimes.append(cellSeedSerTime)
+				
+				policyKey = "policy=" + policy
+				renTimeKey = "renegingTime=" + renTime
+				seedKey = legends[i].split(", ")[2]
+				
+				updatedData[renTimeKey][policyKey][seedKey] = {
+					"wifi": {"time": wifiSeedTime, "serviceTime": wifiSeedSerTime, "activeTime": wifiActiveValues[i].tolist()},
+					"cellular": {"time": cellSeedTime, "serviceTime": cellSeedSerTime}
+				}
+		
+			if saveDir:
+				qTimesWifi, qValuesWifi = quantizeData(wifiTimes, wifiServiceTimes, step=100.0)
+				qTimesCell, qValuesCell = quantizeData(cellularTimes, cellularServiceTimes, step=200.0)
+				titles = {
+					"title": "policy={} renegingTime={}".format(policy, renTime),
+					"x": "Simulation Time",
+					"y": "Service Time"
+				}
+				legends = ["WiFi - Averaged on runs", "Cellular - Averaged on runs"]
+				fileName = "WiFi_Cellular_Scatter_{}_{}_averaged.png".format(policy, renTime)
+				plotGraph([qTimesWifi, qTimesCell], [qValuesWifi, qValuesCell], titles, legends, scatter=True, savePath=os.path.join(saveDir, fileName))
+				
+	return updatedData
 	
 
 

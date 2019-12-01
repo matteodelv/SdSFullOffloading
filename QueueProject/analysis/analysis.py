@@ -1,153 +1,169 @@
 #!/usr/bin/env python3
 
 import argparse
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import copy
-from utils import filterData, quantizeData, splitJobsByQueue, setupPlots, loadData, runningAvg, plotGraph
-
-import pprint
+from utils import filterData, quantizeData, setupPlots, loadData, plotGraph, extractWiFiCellularData, getTupleValues
 
 
-def extractWiFiCellularData(data, keys, saveDir=None):
-	updatedData = copy.deepcopy(data)
-	for policy in keys["policy"]:
-		for renTime in keys["renegingTime"]:
-			sTimes, serviceTimeValues, legends = filterData(data, "totalServiceTime:vector", policy, renTime)
-			qTimes, queuesVisitedValues, _ = filterData(data, "queuesVisited:vector", policy, renTime)	
+def computeMeanResponseTime(data, keys, outputDir):
+	print("Calculating Mean Response Time... ")
 	
-			wifiTimes = []
-			wifiServiceTimes = []
-			cellularTimes = []
-			cellularServiceTimes = []
-	
-			for i in range(len(sTimes)):
-				wifiJobs, cellularJobs = splitJobsByQueue([sTimes[i], qTimes[i]], serviceTimeValues[i], queuesVisitedValues[i])
-		
-				wifiSeedTime = wifiJobs[:,:1].reshape(-1).tolist()
-				wifiSeedSerTime = wifiJobs[:,1:].reshape(-1).tolist()
-				wifiTimes.append(wifiSeedTime)
-				wifiServiceTimes.append(wifiSeedSerTime)
-		
-				cellSeedTime = cellularJobs[:,:1].reshape(-1).tolist()
-				cellSeedSerTime = cellularJobs[:,1:].reshape(-1).tolist()
-				cellularTimes.append(cellSeedTime)
-				cellularServiceTimes.append(cellSeedSerTime)
-				
-				policyKey = "policy=" + policy
-				renTimeKey = "renegingTime=" + renTime
-				seedKey = legends[i].split(", ")[2]
-				updatedData[renTimeKey][policyKey][seedKey] = {
-					"wifi": {"time": wifiSeedTime, "serviceTime": wifiSeedSerTime},
-					"cellular": {"time": cellSeedTime, "serviceTime": cellSeedSerTime}
-				}
-		
-			if saveDir:
-				qTimesWifi, qValuesWifi = quantizeData(wifiTimes, wifiServiceTimes, step=100.0)
-				qTimesCell, qValuesCell = quantizeData(cellularTimes, cellularServiceTimes, step=200.0)
-				titles = {
-					"title": "policy={} renegingTime={}".format(policy, renTime),
-					"x": "Simulation Time",
-					"y": "Service Time"
-				}
-				legends = ["WiFi - Averaged on runs", "Cellular - Averaged on runs"]
-				fileName = "WiFi_Cellular_Scatter_{}_{}_averaged.png".format(policy, renTime)
-				plotGraph([qTimesWifi, qTimesCell], [qValuesWifi, qValuesCell], titles, legends, scatter=True, savePath=os.path.join(saveDir, fileName))
-				
-	return updatedData
-
-
-def computeMeanResponseTime(data, keys):
 	lambdaValue = 0.5
 	responseData = copy.deepcopy(data)
 	
-	for policy in keys["policy"]:
-		for renTime in keys["renegingTime"]:
+	mrtData = []
+	for renTime in keys["renegingTime"]:
+		for policy in keys["policy"]:
 			wifiTimes, wifiValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.wifiQueue")
 			cellTimes, cellValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.cellularQueue")
 			remTimes, remValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.remoteQueue")
-			responses = []
-			wifiMeans = []
-			for i in range(len(wifiValues)):
-				wifiMeans.append(np.mean(wifiValues[i]))
-				print("WIFI - policy: {}, renTime: {}, len: {}, mean: {}".format(policy, renTime, len(wifiValues[i]), np.mean(wifiValues[i])))
-			print("WIFI - policy: {}, renTime: {}, AVERAGED MEAN: {}".format(policy, renTime, np.mean(wifiMeans)))
-			responses.append(np.mean(wifiMeans))
-			print()
 			
-			cellMeans = []
-			for i in range(len(cellValues)):
-				cellMeans.append(np.mean(cellValues[i]))
-				print("CELLULAR - policy: {}, renTime: {}, len: {}, mean: {}".format(policy, renTime, len(cellValues[i]), np.mean(cellValues[i])))
-			print("CELLULAR - policy: {}, renTime: {}, AVERAGED MEAN: {}".format(policy, renTime, np.mean(cellMeans)))
-			responses.append(np.mean(cellMeans))
-			print()
+			qTimes, qVals = quantizeData([wifiTimes[0], cellTimes[0], remTimes[0]], [wifiValues[0], cellValues[0], remValues[0]], step=100.0)
 			
-			remMeans = []
-			for i in range(len(remValues)):
-				remMeans.append(np.mean(remValues[i]))
-				print("REMOTE - policy: {}, renTime: {}, len: {}, mean: {}".format(policy, renTime, len(remValues[i]), np.mean(remValues[i])))
-			print("REMOTE - policy: {}, renTime: {}, AVERAGED MEAN: {}".format(policy, renTime, np.mean(remMeans)))
-			responses.append(np.mean(remMeans))
-			mrt = 1/lambdaValue * np.sum(responses)
-			print("MEAN RESPONSE TIME: {} min".format(mrt))
-			print()
-			print("----------")
-			print()
+			mrt = 1/lambdaValue * np.sum(np.mean(qVals))
+			mrtData.append([int(renTime), mrt, int(policy)])
+			
 			renTimeKey = "renegingTime=" + renTime
 			policyKey = "policy=" + policy
 			responseData[renTimeKey][policyKey] = mrt
+	
+	mrtData = np.array(mrtData)
+	plotData = []
+	for policy in keys["policy"]:
+		mask = (mrtData[:,2] == int(policy))
+		polData = mrtData[mask]
+		polData = polData[polData[:,0].argsort()]
+		xs = polData[:,0]
+		ys = polData[:,1]
+		coeff = np.polyfit(xs.flatten(), ys.flatten(), 7)
+		p = np.poly1d(coeff)
+		newys = p(xs).tolist()
+		plotData.append((xs.tolist(), newys, "policy: {}, trend".format(policy)))
+		#plotData.append((xs.tolist(), ys.tolist(), "policy: {}".format(policy)))
+		
+	
+	titles = {
+		"title": "Full Offloading Model",
+		"x": "Deadline [min]",
+		"y": "Mean Response Time [min]"
+	}
+	filePath = os.path.join(outputDir, "FullOffloading_Response_Deadline.png")
+	plotGraph(getTupleValues(0, plotData), getTupleValues(1, plotData), titles, legends=getTupleValues(2, plotData), ylim=(5, 35), savePath=filePath)
+	
 	return responseData
-			
-			
-			
-def computeMeanEnergyConsumption(data, keys):
+		
+
+def computeMeanEnergyConsumption(data, keys, outputDir):
+	print("Calculating Mean Energy Consumption... ")
+	
 	wifiPowerCoefficient = 0.7
 	cellularPowerCoefficient = 2.5
 	lambdaValue = 0.5
+	simulationDuration = 2800000
 	energyData = copy.deepcopy(data)
 	
-	for policy in keys["policy"]:
-		for renTime in keys["renegingTime"]:
+	mecData = []
+	
+	for renTime in keys["renegingTime"]:
+		renTimeKey = "renegingTime=" + renTime
+		
+		for policy in keys["policy"]:
 			policyKey = "policy=" + policy
-			renTimeKey = "renegingTime=" + renTime
 			
-			wifiAveraged = []
-			cellAveraged = []
-			for seedKey, seedValues in data[renTimeKey][policyKey].items():
-				wifiSerTimes = seedValues["wifi"]["serviceTime"]
-				cellSerTimes = seedValues["cellular"]["serviceTime"]
-				print("policy: {}, renTime: {}, {}, wifi sum: {:.4f}, cell sum: {:.4f}, wifi mean: {:.4f}, cell mean: {:.4f}".format(policy, renTime, seedKey, np.sum(wifiSerTimes), np.sum(cellSerTimes), np.mean(wifiSerTimes), np.mean(cellSerTimes)))
-				wifiAveraged.append(np.sum(wifiSerTimes))
-				cellAveraged.append(np.sum(cellSerTimes))
+			wifiSeedsData = []
+			cellSeedsData = []
 			
-			print("policy: {}, renTime: {}, wifi avg sum: {:.4f}, cell avg sum: {:.4f}".format(policy, renTime, np.mean(wifiAveraged), np.mean(cellAveraged)))
-			print("policy: {}, renTime: {}, wifi energy: {:.4f} Joule, cell energy {:.4f} Joule".format(policy, renTime, np.mean(wifiAveraged) * wifiPowerCoefficient, np.mean(cellAveraged) * cellularPowerCoefficient))
-			sumValue = np.mean(wifiAveraged) * wifiPowerCoefficient + np.mean(cellAveraged) * cellularPowerCoefficient
-			mec = 1/lambdaValue * np.sum(sumValue)
+			for vals in data[renTimeKey][policyKey].values():
+				wTimes = vals["wifi"]["time"]
+				wSerTimes = vals["wifi"]["serviceTime"]
+				wActiveTimes = vals["wifi"]["activeTime"]
+				cTimes = vals["cellular"]["time"]
+				cSerTimes = vals["cellular"]["serviceTime"]
+				wifiSeedsData.append((wTimes, wSerTimes, wActiveTimes))
+				cellSeedsData.append((cTimes, cSerTimes))
+			
+			wifiTimes, wifiSerTimes = quantizeData(getTupleValues(0, wifiSeedsData), getTupleValues(1, wifiSeedsData), step=1000.0)
+			cellTimes, cellSerTimes = quantizeData(getTupleValues(0, cellSeedsData), getTupleValues(1, cellSeedsData), step=1000.0)
+			activeTimes = getTupleValues(2, wifiSeedsData)
+			
+			wifiFraction = np.sum(wifiSerTimes) / np.sum(activeTimes)
+			cellFraction = np.sum(cellSerTimes) / simulationDuration
+			mec = 1/lambdaValue * np.sum(wifiFraction * wifiPowerCoefficient + cellFraction * cellularPowerCoefficient)
+			
+			mecData.append([int(renTime), mec, int(policy)])
 			energyData[renTimeKey][policyKey] = mec
-			print("policy: {}, renTime: {}, Mean Energy Consumption: {} Joule".format(policy, renTime, mec))
-			print()
+			
+	
+	mecData = np.array(mecData)
+	plotData = []
+	for policy in keys["policy"]:
+		mask = (mecData[:,2] == int(policy))
+		polData = mecData[mask]
+		polData = polData[polData[:,0].argsort()]
+		xs = polData[:,0]
+		ys = polData[:,1]
+		coeff = np.polyfit(xs.flatten(), ys.flatten(), 5)
+		p = np.poly1d(coeff)
+		newys = p(xs).tolist()
+		plotData.append((xs.tolist(), newys, "policy: {}, trend".format(policy)))
+		#plotData.append((xs.tolist(), ys.tolist(), "policy: {}".format(policy)))
+		
+	
+	titles = {
+		"title": "Full Offloading Model",
+		"x": "Deadline [min]",
+		"y": "Mean Energy Consumption [J]"
+	}
+	filePath = os.path.join(outputDir, "FullOffloading_Energy_Deadline.png")
+	plotGraph(getTupleValues(0, plotData), getTupleValues(1, plotData), titles, legends=getTupleValues(2, plotData), savePath=filePath)
 	
 	return energyData
 
 
-def computeERWP(responseData, energyData, keys, w=None):
+def computeERWP(responseData, energyData, keys, outputDir, w=None):
+	print("Calculating ERWP... ")
+	
 	if not w:
 		w = [0.5]
 	
-	for policy in keys["policy"]:
-		policyKey = "policy=" + policy
-		for renTime in keys["renegingTime"]:
-			renTimeKey = "renegingTime=" + renTime
-			meanRespTime = responseData[renTimeKey][policyKey]
-			meanEnergyCons = energyData[renTimeKey][policyKey]
+	renTimesMap = {"8": 0.125, "10": 0.1, "18": 0.056, "25": 0.04, "33": 0.03, "40": 0.025, "50": 0.02, "65": 0.015, "80": 0.0125, "100": 0.01, "120": 0.008, "140": 0.007, "160": 0.00625, "180": 0.0055, "200": 0.005, "220": 0.0045, "240": 0.004, "260": 0.0038, "280": 0.0035, "300": 0.0033}
+	
+	erwpData = []
+	for exp in w:
+		for policy in keys["policy"]:
+			policyKey = "policy=" + policy
 			
-			for exp in w:
-				print("policy: {}, renTime: {} - ERWP with w={}: {}".format(policy, renTime, exp, np.power(meanRespTime, exp) * np.power(meanEnergyCons, 1-exp)))
-		print()
+			for renTime in keys["renegingTime"]:
+				renTimeKey = "renegingTime=" + renTime
+				meanRespTime = responseData[renTimeKey][policyKey]
+				meanEnergyCons = energyData[renTimeKey][policyKey]
+				erwp = np.power(meanEnergyCons, exp) * np.power(meanRespTime, 1-exp)
+				erwpData.append([renTimesMap[renTime], erwp, int(policy), exp])
+	
+	erwpData = np.array(erwpData)
+	
+	plotData = []
+	for exp in w:
+		for policy in keys["policy"]:
+			mask = (erwpData[:,3] == exp) & (erwpData[:,2] == int(policy))
+			subMatrix = erwpData[mask]
+			subMatrix = subMatrix[subMatrix[:,0].argsort()]
+			xs = subMatrix[:,0]
+			ys = subMatrix[:,1]
+			coeff = np.polyfit(xs.flatten(), ys.flatten(), 3)
+			p = np.poly1d(coeff)
+			newys = p(xs).tolist()
+			plotData.append((xs.tolist(), p(xs), "policy: {}, w: {}".format(policy, exp)))
+	
+	titles = {
+		"title": "Full Offloading Model ERWP",
+		"x": "Reneging Rate r",
+		"y": "ERWP"
+	}
+	filePath = os.path.join(outputDir, "FullOffloading_ERWP_RenegingRate.png")
+	plotGraph(getTupleValues(0, plotData), getTupleValues(1, plotData), titles, getTupleValues(2, plotData), savePath=filePath)
 	
 
 
@@ -162,12 +178,8 @@ if __name__ == "__main__":
 	data, keys = loadData(args.inputDir, "BatchExecution")
 	setupPlots()
 	wifiCellData = extractWiFiCellularData(data, keys, plotsPath)
-	responseData = computeMeanResponseTime(data, keys)
-	energyData = computeMeanEnergyConsumption(wifiCellData, keys)
-	computeERWP(responseData, energyData, keys, w=[0.1, 0.5, 0.9])
-	
-	#pp = pprint.PrettyPrinter(depth=3)
-	#pp.pprint(data)
-	#pp.pprint(keys)
+	responseData = computeMeanResponseTime(data, keys, plotsPath)
+	energyData = computeMeanEnergyConsumption(wifiCellData, keys, plotsPath)
+	computeERWP(responseData, energyData, keys, plotsPath, w=[0.1, 0.5, 0.9])
 
 
