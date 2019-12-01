@@ -17,7 +17,7 @@ then
 fi
 
 echo "Launching ${config} configuration..."
-./QueueProject -m -n $nedPath -l $libPath omnetpp.ini -u Cmdenv -c $config
+./SdSFullOffloading -m -n $nedPath -l $libPath omnetpp.ini -u Cmdenv -c $config
 
 echo "Exporting simulation data..."
 source analysis/exportStats.sh $config
