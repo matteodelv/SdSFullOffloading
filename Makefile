@@ -1,12 +1,12 @@
 #
-# OMNeT++/OMNEST Makefile for QueueProject
+# OMNeT++/OMNEST Makefile for SdSFullOffloading
 #
 # This file was generated with the command:
 #  opp_makemake -f --deep -O out -KQUEUEINGLIB_PROJ=/home/matteo/omnetpp-5.5.1/samples/queueinglib -DQUEUEING_IMPORT -I. -I$$\(QUEUEINGLIB_PROJ\) -L$$\(QUEUEINGLIB_PROJ\) -lqueueinglib$$\(D\)
 #
 
 # Name of target to be created (-o option)
-TARGET = QueueProject$(D)$(EXE_SUFFIX)
+TARGET = SdSFullOffloading$(D)$(EXE_SUFFIX)
 TARGET_DIR = .
 
 # User interface (uncomment one) (-u option)

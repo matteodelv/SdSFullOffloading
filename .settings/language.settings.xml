@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <project>
     	
-    <configuration id="org.omnetpp.cdt.gnu.config.debug.1016944541" name="debug">
+    <configuration id="org.omnetpp.cdt.gnu.config.debug.175829206" name="debug">
         		
         <extension point="org.eclipse.cdt.core.LanguageSettingsProvider">
             			
@@ -23,7 +23,7 @@
         	
     </configuration>
     	
-    <configuration id="org.omnetpp.cdt.gnu.config.release.549789568" name="release">
+    <configuration id="org.omnetpp.cdt.gnu.config.release.294746438" name="release">
         		
         <extension point="org.eclipse.cdt.core.LanguageSettingsProvider">
             			

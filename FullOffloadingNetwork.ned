@@ -15,24 +15,25 @@
 
 import org.omnetpp.queueing.Sink;
 
-network QueueNetwork
+network FullOffloadingNetwork
 {
+    @display("bgb=601,359");
     submodules:
         sink: Sink {
-            @display("p=364,167");
+            @display("p=492,169");
         }
         wifiQueue: OffloadingQueue {
-            @display("p=140,136");
+            @display("p=171,199");
         }
         cellularQueue: QueueCustom {
-            @display("p=259,57");
+            @display("p=316,97");
         }
         remoteQueue: QueueCustom {
-            @display("p=259,187");
+            @display("p=343,269");
             trackServiceTime = false;
         }
         source: LimitedSource {
-            @display("p=50,72");
+            @display("p=84,97");
         }
     connections:
         source.out --> wifiQueue.in++;
