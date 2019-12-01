@@ -100,7 +100,7 @@ def filterData(data, measureKey, policy, renegingTime, moduleName=None):
 	values = []
 	legends = []
 	for seedKey, simData in relevantData.items():
-		legendStr = "{}, {}, {}{}".format(renegingTimeKey, policyKey, seedKey, "" if moduleName == None else ", {}".format(moduleName.replace("QueueNetwork.", "")))
+		legendStr = "{}, {}, {}{}".format(renegingTimeKey, policyKey, seedKey, "" if moduleName == None else ", {}".format(moduleName.replace("FullOffloadingNetwork.", "")))
 		vectors = simData["vectors"]
 		measureVector = [vec for vec in vectors if vec["name"] == measureKey and (moduleName == None or vec["module"] == moduleName)][0]
 		measureValues = np.array(measureVector["value"])

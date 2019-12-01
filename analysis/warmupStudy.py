@@ -69,12 +69,12 @@ def plotMeanQueueLength(data, keys, moduleName, outputDir, plotMeanOnly=True):
 			#values = list(map(lambda e: runningAvg(e), values)) # TODO: check this
 			
 			titles = {
-				"title": "{} policy={} renegingTime={}".format(moduleName.replace("QueueNetwork.", ""), policy, renTime),
+				"title": "{} policy={} renegingTime={}".format(moduleName.replace("FullOffloadingNetwork.", ""), policy, renTime),
 				"x": "Simulation Time",
 				"y": "Queue Length"
 			}
 			
-			fileName = "QueueLength_{}_{}_{}{}.png".format(moduleName.replace("QueueNetwork.", ""), policy, renTime, "_averaged" if plotMeanOnly else "")
+			fileName = "QueueLength_{}_{}_{}{}.png".format(moduleName.replace("FullOffloadingNetwork.", ""), policy, renTime, "_averaged" if plotMeanOnly else "")
 			plotGraph(timeValues, values, titles, legends, drawStyle="steps-post", savePath=os.path.join(outputDir, fileName))
 
 
@@ -91,8 +91,8 @@ if __name__ == "__main__":
 	wifiCellData = extractWiFiCellularData(data, keys)
 	setupPlots()
 	plotMeanServiceTime(wifiCellData, keys, plotsPath)
-	plotMeanQueueLength(data, keys, "QueueNetwork.cellularQueue", plotsPath, plotMeanOnly=False)
-	plotMeanQueueLength(data, keys, "QueueNetwork.wifiQueue", plotsPath, plotMeanOnly=False)
+	plotMeanQueueLength(data, keys, "FullOffloadingNetwork.cellularQueue", plotsPath, plotMeanOnly=False)
+	plotMeanQueueLength(data, keys, "FullOffloadingNetwork.wifiQueue", plotsPath, plotMeanOnly=False)
 
 
 

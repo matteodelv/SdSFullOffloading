@@ -16,9 +16,9 @@ def computeMeanResponseTime(data, keys, outputDir):
 	mrtData = []
 	for renTime in keys["renegingTime"]:
 		for policy in keys["policy"]:
-			wifiTimes, wifiValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.wifiQueue")
-			cellTimes, cellValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.cellularQueue")
-			remTimes, remValues, _ = filterData(data, "queueLength:vector", policy, renTime, "QueueNetwork.remoteQueue")
+			wifiTimes, wifiValues, _ = filterData(data, "queueLength:vector", policy, renTime, "FullOffloadingNetwork.wifiQueue")
+			cellTimes, cellValues, _ = filterData(data, "queueLength:vector", policy, renTime, "FullOffloadingNetwork.cellularQueue")
+			remTimes, remValues, _ = filterData(data, "queueLength:vector", policy, renTime, "FullOffloadingNetwork.remoteQueue")
 			
 			qTimes, qVals = quantizeData([wifiTimes[0], cellTimes[0], remTimes[0]], [wifiValues[0], cellValues[0], remValues[0]], step=100.0)
 			
