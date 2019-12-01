@@ -24,6 +24,8 @@ private:
     simsignal_t queueingTimeSignal;
     simsignal_t busySignal;
 
+    simsignal_t wifiActiveTime;
+
     Job *servicedJob;
     cMessage *endServiceMsg;
     cQueue queue;

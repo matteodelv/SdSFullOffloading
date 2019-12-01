@@ -17,6 +17,9 @@ typedef enum {
 Define_Module(OffloadingQueue);
 
 void OffloadingQueue::updateNextStatusChangeTime(simtime_t expWiFiEnd) {
+    if (wifiAvailable && expWiFiEnd != SIMTIME_ZERO)
+        emit(wifiActiveTime, expWiFiEnd);
+
     simtime_t nextChange = (wifiAvailable) ? expWiFiEnd : par("cellularStateDistribution").doubleValue();
     nextStatusChangeTime = simTime() + nextChange;
     scheduleAt(nextStatusChangeTime, wifiStatusMsg);
@@ -45,6 +48,8 @@ void OffloadingQueue::initialize() {
 
     busySignal = registerSignal("busy");
     emit(busySignal, false);
+
+    wifiActiveTime = registerSignal("wifiActiveTime");
 
     endServiceMsg = new cMessage("end_service");
     fifo = par("fifo");

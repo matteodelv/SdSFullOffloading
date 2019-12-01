@@ -32,8 +32,8 @@ simple OffloadingQueue
         @statistic[queueingTime](title="queueing time at dequeue";record=vector?,mean,max;unit=s;interpolationmode=none);
         @statistic[busy](title="server busy state";record=vector?,timeavg;interpolationmode=sample-hold);
         
-        @signal[jobsInQueue](type="long");
-        @statistic[jobsInQueue](title="number of jobs in queue";record=vector?,count,mean;interpolationmode=none);
+        @signal[wifiActiveTime](type="simtime_t");
+        @statistic[wifiActiveTime](title="time in which the server was connected to the wifi";record=vector,mean,last;unit=s;interpolationmode=none);
 
         int capacity = default(-1);    // negative capacity means unlimited queue
         bool fifo = default(true);     // whether the module works as a queue (fifo=true) or a stack (fifo=false)

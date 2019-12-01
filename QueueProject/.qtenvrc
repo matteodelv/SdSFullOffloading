@@ -1,5 +1,5 @@
 [General]
-last-configname=DefaultReneging
+last-configname=BatchExecution
 last-runnumber=0
 
 [RunModeProfiles]
@@ -12,4 +12,4 @@ run-max-animation-speed=nan
 run-max-playback-speed=100
 run-min-animation-speed=nan
 run-min-playback-speed=0.01
-run-playback-speed=13.803842646028846
+run-playback-speed=9.33254300796991
