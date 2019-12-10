@@ -28,12 +28,15 @@ simple QueueCustom
         @statistic[queueLength](title="queue length";record=vector,timeavg,max;interpolationmode=sample-hold);
         @statistic[queueingTime](title="queueing time at dequeue";record=vector?,mean,max;unit=s;interpolationmode=none);
         @statistic[busy](title="server busy state";record=vector?,timeavg;interpolationmode=sample-hold);
+        
+        @signal[responseTime](type="simtime_t");
+        @statistic[responseTime](title="queue response times";record=vector,mean;unit=s;interpolationmode=none);
 
         int capacity = default(-1);    // negative capacity means unlimited queue
         bool fifo = default(true);     // whether the module works as a queue (fifo=true) or a stack (fifo=false)
         volatile double serviceTime @unit(s);
         
-        bool trackServiceTime = default(true);
+        bool remoteTracking = default(false);
     gates:
         input in[];
         output out;

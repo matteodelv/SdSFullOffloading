@@ -34,6 +34,9 @@ simple OffloadingQueue
         
         @signal[wifiActiveTime](type="simtime_t");
         @statistic[wifiActiveTime](title="time in which the server was connected to the wifi";record=vector,mean,last;unit=s;interpolationmode=none);
+        
+        @signal[responseTime](type="simtime_t");
+        @statistic[responseTime](title="queue response time";record=vector,mean;unit=s;interpolationmode=none);
 
         int capacity = default(-1);    // negative capacity means unlimited queue
         bool fifo = default(true);     // whether the module works as a queue (fifo=true) or a stack (fifo=false)

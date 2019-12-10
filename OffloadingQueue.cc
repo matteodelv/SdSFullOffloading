@@ -50,6 +50,7 @@ void OffloadingQueue::initialize() {
     emit(busySignal, false);
 
     wifiActiveTime = registerSignal("wifiActiveTime");
+    responseTimeSignal = registerSignal("responseTime");
 
     endServiceMsg = new cMessage("end_service");
     fifo = par("fifo");
@@ -299,6 +300,10 @@ void OffloadingQueue::endService(Job *job, int gateID) {
 
     simtime_t d = simTime() - job->getTimestamp();
     job->setTotalServiceTime(job->getTotalServiceTime() + d);
+
+    simtime_t wifiRespTime = job->getTotalQueueingTime() + job->getTotalServiceTime();
+    emit(responseTimeSignal, wifiRespTime);
+
     send(job, "out", gateID);
 }
 

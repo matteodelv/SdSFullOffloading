@@ -36,7 +36,8 @@ void QueueCustom::initialize()
     capacity = par("capacity");
     queue.setName("queue");
 
-    trackServiceTime = par("trackServiceTime");
+    remoteTracking = par("remoteTracking");
+    responseTimeSignal = registerSignal("responseTime");
 }
 
 void QueueCustom::handleMessage(cMessage *msg)
@@ -119,9 +120,14 @@ simtime_t QueueCustom::startService(Job *job)
     // gather queueing time statistics
     simtime_t d = simTime() - job->getTimestamp();
     emit(queueingTimeSignal, d);
-    job->setTotalQueueingTime(job->getTotalQueueingTime() + d);
+
+    if (!remoteTracking) {
+        job->setTotalQueueingTime(job->getTotalQueueingTime() + d);
+        job->setTimestamp();
+        EV << job << " - total queueing time: " << job->getTotalQueueingTime() << endl;
+    }
+
     EV << "Starting service of " << job->getName() << endl;
-    job->setTimestamp();
 
     return par("serviceTime").doubleValue();
 }
@@ -130,9 +136,14 @@ void QueueCustom::endService(Job *job)
 {
     EV << "Finishing service of " << job->getName() << endl;
 
-    if (trackServiceTime) {
-        simtime_t d = simTime() - job->getTimestamp();
+    simtime_t d = simTime() - job->getTimestamp();
+
+    if (remoteTracking)
+        emit(responseTimeSignal, d);
+    else {
         job->setTotalServiceTime(job->getTotalServiceTime() + d);
+        simtime_t cellRespTime = job->getTotalQueueingTime() + job->getTotalServiceTime();
+        emit(responseTimeSignal, cellRespTime);
     }
 
     send(job, "out");

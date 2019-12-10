@@ -25,6 +25,7 @@ private:
     simsignal_t busySignal;
 
     simsignal_t wifiActiveTime;
+    simsignal_t responseTimeSignal;
 
     Job *servicedJob;
     cMessage *endServiceMsg;

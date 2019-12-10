@@ -30,7 +30,7 @@ network FullOffloadingNetwork
         }
         remoteQueue: QueueCustom {
             @display("p=343,269");
-            trackServiceTime = false;
+            remoteTracking = true;
         }
         source: LimitedSource {
             @display("p=84,97");
