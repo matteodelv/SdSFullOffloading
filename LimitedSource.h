@@ -13,7 +13,6 @@
 
 using namespace queueing;
 
-//class Job;
 
 class QUEUEING_API LimitedSource : public SourceBase
 {
@@ -22,12 +21,12 @@ class QUEUEING_API LimitedSource : public SourceBase
         simtime_t stopTime;
         int numJobs;
         bool warmupExceeded;
+        bool transientAnalysis;
 
     protected:
         virtual void initialize() override;
         virtual void handleMessage(cMessage *msg) override;
 };
-
 
 
 #endif /* LIMITEDSOURCE_H_ */

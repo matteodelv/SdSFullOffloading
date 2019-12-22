@@ -16,8 +16,9 @@ void LimitedSource::initialize()
     SourceBase::initialize();
     startTime = par("startTime");
     stopTime = par("stopTime");
-    numJobs = -1;
     warmupExceeded = false;
+    transientAnalysis = par("transientAnalysis").boolValue();
+    numJobs = transientAnalysis ? par("numJobs") : -1;
 
     // schedule the first message timer for start time
     scheduleAt(startTime, new cMessage("newJobTimer"));
@@ -27,7 +28,8 @@ void LimitedSource::handleMessage(cMessage *msg)
 {
     ASSERT(msg->isSelfMessage());
 
-    if (simTime() >= getSimulation()->getWarmupPeriod() && !warmupExceeded) {
+    simtime_t warmup = getSimulation()->getWarmupPeriod();
+    if (simTime() >= warmup && warmup > 0 && !warmupExceeded) {
         numJobs = par("numJobs");
         jobCounter = 0;
         warmupExceeded = true;
@@ -38,6 +40,9 @@ void LimitedSource::handleMessage(cMessage *msg)
         scheduleAt(simTime() + par("interArrivalTime").doubleValue(), msg);
 
         Job *job = createJob();
+        if (warmupExceeded || transientAnalysis)
+            job->setKind(1);
+
         send(job, "out");
     }
     else {

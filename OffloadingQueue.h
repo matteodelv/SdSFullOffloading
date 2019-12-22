@@ -14,8 +14,6 @@
 
 using namespace queueing;
 
-//class Job;
-
 
 class QUEUEING_API OffloadingQueue : public cSimpleModule {
 private:
@@ -25,7 +23,9 @@ private:
     simsignal_t busySignal;
 
     simsignal_t wifiActiveTime;
-    simsignal_t responseTimeSignal;
+    simsignal_t cellActiveTime;
+    simsignal_t deadlineDistrib;
+    simsignal_t jobServiceTimeSignal;
 
     Job *servicedJob;
     cMessage *endServiceMsg;
@@ -48,6 +48,7 @@ public:
     OffloadingQueue();
     virtual ~OffloadingQueue();
     int length();
+    static int compareFunction(cObject *a, cObject *b);
 
 protected:
     virtual void initialize() override;

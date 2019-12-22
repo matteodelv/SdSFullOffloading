@@ -27,16 +27,22 @@ simple OffloadingQueue
         @signal[queueLength](type="long");
         @signal[queueingTime](type="simtime_t");
         @signal[busy](type="bool");
-        @statistic[dropped](title="drop event";record=vector?,count;interpolationmode=none);
-        @statistic[queueLength](title="queue length";record=vector,timeavg,max,mean,count;interpolationmode=sample-hold);
-        @statistic[queueingTime](title="queueing time at dequeue";record=vector?,mean,max;unit=s;interpolationmode=none);
-        @statistic[busy](title="server busy state";record=vector?,timeavg;interpolationmode=sample-hold);
+        @statistic[dropped](title="drop event";record=vector?,count?;interpolationmode=none);
+        @statistic[queueLength](title="queue length";record=vector?,timeavg?,max?,mean?,count?;interpolationmode=sample-hold);
+        @statistic[queueingTime](title="queueing time at dequeue";record=vector?,mean?,max?;unit=s;interpolationmode=none);
+        @statistic[busy](title="server busy state";record=vector?,timeavg?;interpolationmode=sample-hold);
         
         @signal[wifiActiveTime](type="simtime_t");
-        @statistic[wifiActiveTime](title="time in which the server was connected to the wifi";record=vector,mean,last;unit=s;interpolationmode=none);
+        @statistic[wifiActiveTime](title="time in which wifi connection was available";record=vector,mean?;unit=s;interpolationmode=none);
         
-        @signal[responseTime](type="simtime_t");
-        @statistic[responseTime](title="queue response time";record=vector,mean;unit=s;interpolationmode=none);
+        @signal[cellActiveTime](type="simtime_t");
+        @statistic[cellActiveTime](title="time in which wifi connection was not available (falling back on cellular)";record=vector,mean?;unit=s;interpolationmode=none);
+        
+        @signal[deadlineDistrib](type="simtime_t");
+        @statistic[deadlineDistrib](title="time in which the server was connected to cellular";record=vector,mean?;unit=s;interpolationmode=none);
+        
+        @signal[jobServiceTime](type="simtime_t");
+        @statistic[jobServiceTime](title="time in which jobs are offloaded";record=vector;unit=s;interpolationmode=none);
 
         int capacity = default(-1);    // negative capacity means unlimited queue
         bool fifo = default(true);     // whether the module works as a queue (fifo=true) or a stack (fifo=false)
@@ -45,7 +51,6 @@ simple OffloadingQueue
         volatile double deadlineDistribution @unit(s);
         volatile double wifiStateDistribution @unit(s);
         volatile double cellularStateDistribution @unit(s);
-        int policyType = default(1);
     gates:
         input in[];
         output out[2];

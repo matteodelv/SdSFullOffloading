@@ -6,21 +6,47 @@
  */
 
 #include "OffloadingQueue.h"
+#include <assert.h>
 
 #include "Job.h"
 
-typedef enum {
-    PolicyTypeDelete = 1,
-    PolicyTypeShift
-} PolicyType;
-
 Define_Module(OffloadingQueue);
+
+int OffloadingQueue::compareFunction(cObject *a, cObject *b) {
+    Job *jobA = check_and_cast<Job *>(a);
+    Job *jobB = check_and_cast<Job *>(b);
+    cMessage *aDeadline = (cMessage *)jobA->getContextPointer();
+    cMessage *bDeadline = (cMessage *)jobB->getContextPointer();
+    if (aDeadline && bDeadline) {
+        simtime_t now = simTime();
+        simtime_t timeLeftA = aDeadline->getArrivalTime() - now;
+        simtime_t timeLeftB = bDeadline->getArrivalTime() - now;
+        assert (timeLeftA > SIMTIME_ZERO);
+        assert (timeLeftB > SIMTIME_ZERO);
+        if (timeLeftA < timeLeftB) return -1;
+        else if (timeLeftA > timeLeftB) return 1;
+        else return 0;
+    }
+    else if (aDeadline || bDeadline) {
+        if (aDeadline) return -1;
+        else return 1;
+    }
+    else {
+        simtime_t creationTimeA = jobA->getCreationTime();
+        simtime_t creationTimeB = jobB->getCreationTime();
+        if (creationTimeA < creationTimeB) return -1;
+        else if (creationTimeA > creationTimeB) return 1;
+        else return 0;
+    }
+}
 
 void OffloadingQueue::updateNextStatusChangeTime(simtime_t expWiFiEnd) {
     if (wifiAvailable && expWiFiEnd != SIMTIME_ZERO)
         emit(wifiActiveTime, expWiFiEnd);
 
     simtime_t nextChange = (wifiAvailable) ? expWiFiEnd : par("cellularStateDistribution").doubleValue();
+    if (!wifiAvailable)
+        emit(cellActiveTime, nextChange);
     nextStatusChangeTime = simTime() + nextChange;
     scheduleAt(nextStatusChangeTime, wifiStatusMsg);
     EV << "Next WIFI status change time: " << nextStatusChangeTime << endl;
@@ -50,12 +76,15 @@ void OffloadingQueue::initialize() {
     emit(busySignal, false);
 
     wifiActiveTime = registerSignal("wifiActiveTime");
-    responseTimeSignal = registerSignal("responseTime");
+    cellActiveTime = registerSignal("cellActiveTime");
+    deadlineDistrib = registerSignal("deadlineDistrib");
+    jobServiceTimeSignal = registerSignal("jobServiceTime");
 
     endServiceMsg = new cMessage("end_service");
     fifo = par("fifo");
     capacity = par("capacity");
     queue.setName("queue");
+    queue.setup(compareFunction);
 
     wifiAvailable = false;
     wifiStatusMsg = new cMessage("wifi_status_changed");
@@ -77,8 +106,7 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
                 bubble(text.c_str());
             }
 
-            if (job == servicedJob && par("policyType").intValue() == PolicyTypeShift) {
-                endService(servicedJob, 0);
+            if (job == servicedJob) {
                 if (endServiceMsg->isScheduled())
                     cancelEvent(endServiceMsg);
 
@@ -97,14 +125,17 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
                     EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
                 }
             }
-            else {
-                // This happens only when wifi is OFF so the check if not required (if policyType == 1)
-                queue.remove(job);
-                job->setTotalServiceTime(0);
-                emit(queueLengthSignal, length());
-                send(job, "out", 0);
-                delete msg;
+            else if (job == suspendedJob) {
+                suspendedJob = nullptr;
+                if (endServiceMsg->isScheduled())
+                    cancelEvent(endServiceMsg);
             }
+            else
+                queue.remove(job);
+
+            emit(queueLengthSignal, length());
+            send(job, "out", 0);
+            delete msg;
         }
         else
             EV << "DEADLINE REACHED!" << endl;
@@ -117,43 +148,8 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
         if (wifiAvailable) {
             simtime_t nextWiFiEnd = par("wifiStateDistribution").doubleValue();
 
-            if (par("policyType").intValue() == PolicyTypeDelete) {
-                // Cancel all deadlines for queued jobs
-                cQueue::Iterator it = cQueue::Iterator(queue);
-                while (!it.end()) {
-                    Job *job = check_and_cast<Job *>(*it);
-                    if (job->getContextPointer()) {
-                        cMessage *deadlineMsg = (cMessage *)job->getContextPointer();
-                        if (deadlineMsg->isScheduled())
-                            cancelAndDelete(deadlineMsg);
-                        job->setContextPointer(nullptr);
-                        EV << "Deleted scheduled deadline for " << job << endl;
-                    }
-                    ++it;
-                }
-            }
-            else {
-                // Shift all deadlines for queued jobs
-                cQueue::Iterator it = cQueue::Iterator(queue);
-                while(!it.end()) {
-                    Job *job = check_and_cast<Job *>(*it);
-                    if (job->getContextPointer()) {
-                        cMessage *deadlineMsg = (cMessage *)job->getContextPointer();
-                        simtime_t prevSchedTime = deadlineMsg->getArrivalTime();
-                        if (deadlineMsg->isScheduled())
-                            cancelEvent(deadlineMsg);
-                        simtime_t shiftedTime = prevSchedTime + nextWiFiEnd;
-                        scheduleAt(shiftedTime, deadlineMsg);
-                        job->setContextPointer(deadlineMsg);
-                        EV << "Shifted deadline for " << job << " - Old time: " << prevSchedTime << " - New time: " << deadlineMsg->getArrivalTime() << endl;
-                    }
-                    ++it;
-                }
-            }
-
-            if (suspendedJob) {
+            if (suspendedJob)
                 resumeService(suspendedJob);
-            }
             // no jobs were suspended so get a new one, if available
             else {
                 if (queue.isEmpty()) {
@@ -178,11 +174,18 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
         else {
             updateNextStatusChangeTime(SIMTIME_ZERO);
 
-            if (servicedJob) {
-                suspendService(servicedJob);
+            // update queueing time here
+            cQueue::Iterator it = cQueue::Iterator(queue);
+            while (!it.end()) {
+                Job *job = check_and_cast<Job *>(*it);
+                simtime_t delta = simTime() - job->getTimestamp();
+                job->setTotalQueueingTime(job->getTotalQueueingTime() + delta);
+                ++it;
             }
-        }
 
+            if (servicedJob)
+                suspendService(servicedJob);
+        }
     }
     else if (msg == endServiceMsg) {
         endService(servicedJob, 1);
@@ -241,7 +244,7 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
 
 void OffloadingQueue::refreshDisplay() const {
     getDisplayString().setTagArg("i2", 0, servicedJob ? "status/execute" : "");
-    getDisplayString().setTagArg("i", 1, wifiAvailable ? (queue.isEmpty() ? "" : "cyan") : "red");
+    getDisplayString().setTagArg("i", 1, wifiAvailable ? "lime" : "red");
 }
 
 Job* OffloadingQueue::getFromQueue() {
@@ -252,6 +255,7 @@ Job* OffloadingQueue::getFromQueue() {
         job = (Job *)queue.back();
         queue.remove(job);
     }
+    EV << "Getting job from queue: " << job << endl;
     return job;
 }
 
@@ -271,6 +275,7 @@ void OffloadingQueue::arrival(Job *job) {
         job->setContextPointer(deadlineMsg);
 
         simtime_t deadlineLength = par("deadlineDistribution").doubleValue();
+        emit(deadlineDistrib, deadlineLength);
         simtime_t deadlineTime = simTime() + deadlineLength;
         EV << "Deadline set for job " << job << "; firing time: " << deadlineTime << endl;
         scheduleAt(deadlineTime, deadlineMsg);
@@ -278,19 +283,11 @@ void OffloadingQueue::arrival(Job *job) {
 }
 
 simtime_t OffloadingQueue::startService(Job *job) {
-    simtime_t d = simTime() - job->getTimestamp();
-    emit(queueingTimeSignal, d);
-    job->setTotalQueueingTime(job->getTotalQueueingTime() + d);
-    job->setTimestamp();
     EV << "Starting service of " << job->getName() << " - Current time: " << simTime() << endl;
 
-    // Assumption: when a job is getting served, it can't leave the queue anymore
-    if (job->getContextPointer()) {
-        cMessage *deadlineMsg = (cMessage *)job->getContextPointer();
-        if (deadlineMsg->isScheduled())
-            cancelAndDelete(deadlineMsg);
-        job->setContextPointer(nullptr);
-    }
+    simtime_t delta = simTime() - job->getTimestamp();
+    job->setTotalQueueingTime(job->getTotalQueueingTime() + delta);
+    job->setTimestamp();
 
     return par("serviceTime").doubleValue();
 }
@@ -298,11 +295,20 @@ simtime_t OffloadingQueue::startService(Job *job) {
 void OffloadingQueue::endService(Job *job, int gateID) {
     EV << "Finishing service of " << job->getName() << endl;
 
-    simtime_t d = simTime() - job->getTimestamp();
-    job->setTotalServiceTime(job->getTotalServiceTime() + d);
+    if (job->getContextPointer()) {
+        cMessage *deadlineMsg = (cMessage *)job->getContextPointer();
+        if (deadlineMsg->isScheduled())
+            cancelAndDelete(deadlineMsg);
+        job->setContextPointer(nullptr);
+    }
 
-    simtime_t wifiRespTime = job->getTotalQueueingTime() + job->getTotalServiceTime();
-    emit(responseTimeSignal, wifiRespTime);
+    simtime_t delta = simTime() - job->getTimestamp();
+    job->setTotalServiceTime(job->getTotalServiceTime() + delta);
+
+    EV << job << " - queueing time: " << job->getTotalQueueingTime() << " - service time: " << job->getTotalServiceTime() << endl;
+
+    if (job->getKind() == 1)
+        emit(jobServiceTimeSignal, job->getTotalServiceTime());
 
     send(job, "out", gateID);
 }
@@ -325,6 +331,8 @@ void OffloadingQueue::suspendService(Job *job) {
 }
 
 void OffloadingQueue::resumeService(Job *job) {
+    simtime_t suspendedTime = simTime() - job->getTimestamp();
+    job->setTotalQueueingTime(job->getTotalQueueingTime() + suspendedTime);
     job->setTimestamp();
     servicedJob = job;
     suspendedJob = nullptr;

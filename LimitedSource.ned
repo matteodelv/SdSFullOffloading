@@ -20,7 +20,7 @@ simple LimitedSource
     parameters:
         @group(Queueing);
         @signal[created](type="long");
-        @statistic[created](title="the number of jobs created";record=last;interpolationmode=none);
+        @statistic[created](title="the number of jobs created";record=last?;interpolationmode=none);
         @display("i=block/source");
         volatile int numJobs = default(-1);               // number of jobs to be generated (-1 means no limit)
         volatile double interArrivalTime @unit(s); // time between generated jobs
@@ -29,6 +29,8 @@ simple LimitedSource
         volatile int jobPriority = default(0);   // priority of the job
         double startTime @unit(s) = default(interArrivalTime); // when the module sends out the first job
         double stopTime @unit(s) = default(-1s); // when the module stops the job generation (-1 means no limit)
+        
+        bool transientAnalysis = default(false);
     gates:
         output out;
 }

@@ -26,14 +26,13 @@ class QUEUEING_API QueueCustom : public cSimpleModule
         simsignal_t queueingTimeSignal;
         simsignal_t busySignal;
 
-        simsignal_t responseTimeSignal;
+        simsignal_t jobServiceTimeSignal;
 
         Job *jobServiced;
         cMessage *endServiceMsg;
         cQueue queue;
         int capacity;
         bool fifo;
-        bool remoteTracking;
 
         Job *getFromQueue();
 

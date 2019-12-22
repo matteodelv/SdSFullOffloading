@@ -19,7 +19,7 @@ network FullOffloadingNetwork
 {
     @display("bgb=601,359");
     submodules:
-        sink: Sink {
+        sink: LimitedSink {
             @display("p=492,169");
         }
         wifiQueue: OffloadingQueue {
@@ -30,7 +30,6 @@ network FullOffloadingNetwork
         }
         remoteQueue: QueueCustom {
             @display("p=343,269");
-            remoteTracking = true;
         }
         source: LimitedSource {
             @display("p=84,97");
