@@ -18,6 +18,7 @@ def setupPlots():
 	mpl.rcParams["figure.figsize"] = [10.0, 7.0]
 	mpl.rcParams["figure.dpi"] = 120
 	mpl.rcParams["savefig.dpi"] = 120
+	mpl.rcParams["legend.fontsize"] = 9.0
 
 
 def plotGraph(xs, ys, titles, legends=None, ylim=None, scatter=False, drawStyle="default", savePath=None):
@@ -49,10 +50,6 @@ def getTupleValues(index, data):
 	return list(map(lambda e: e[index], data))
 
 
-def filterTupleValues(index, value, data):
-	return list(filter(lambda e: e[index] == value, data))
-
-
 def loadData(inputDir, config):
 	print("Loading data...")
 	
@@ -63,17 +60,19 @@ def loadData(inputDir, config):
 				selectedFiles.append(os.path.join(root, file))
 
 	dataDict = {}
-	dataKeys = {"seed": [], "policy": [], "renegingTime": []}
+	dataKeys = {"seed": [], "renegingTime": []}
 	for file in selectedFiles:
 		with open(file, "r", encoding="utf-8") as input:
-			match = re.search(r"seed=[0-9]+,policy=[1|2],renegingTime=[0-9]+", file)
+			match = re.search(r"seed=[0-9]+,renegingTime=[0-9]+", file)
 			if match:
 				keys = match.group(0).split(",")
 				fileData = json.load(input)
 				if len(fileData.keys()) > 1:
 					raise Exception("Only one key element expected; found {}".format(len(fileData.keys())))
 				outermostKey = list(fileData.keys())[0]
-				dataDict.setdefault(keys[2], {}).setdefault(keys[1], {})[keys[0]] = fileData[outermostKey]
+				_, _, renTimeVal = keys[1].partition("=")
+				_, _, seedVal = keys[0].partition("=")
+				dataDict.setdefault(renTimeVal, {})[seedVal] = fileData[outermostKey]
 				for elem in keys:
 					key, delim, value = elem.partition("=")
 					if value not in dataKeys[key]:
@@ -85,29 +84,21 @@ def loadData(inputDir, config):
 def runningAvg(x):
 	return np.cumsum(x) / np.arange(1, x.size + 1)
 	
-	
-def runningTimeAvg(x, t):
-	dt = t[1:] - t[:-1]
-	return np.cumsum(x[:-1] * dt) / t[1:]
-	
 
-def filterData(data, measureKey, policy, renegingTime, moduleName=None):
-	policyKey = "policy=" + policy
-	renegingTimeKey = "renegingTime=" + renegingTime
-	relevantData = data[renegingTimeKey][policyKey]
-	
-	times = []
-	values = []
-	legends = []
+def filterData(data, measureKey, renegingTime, moduleName=None):
+	relevantData = data[renegingTime]
+	times = {}
+	values = {}
+	legends = {}
 	for seedKey, simData in relevantData.items():
-		legendStr = "{}, {}, {}{}".format(renegingTimeKey, policyKey, seedKey, "" if moduleName == None else ", {}".format(moduleName.replace("FullOffloadingNetwork.", "")))
+		legendStr = "{}, {}{}".format(renegingTime, seedKey, "" if moduleName == None else ", {}".format(moduleName.replace("FullOffloadingNetwork.", "")))
 		vectors = simData["vectors"]
 		measureVector = [vec for vec in vectors if vec["name"] == measureKey and (moduleName == None or vec["module"] == moduleName)][0]
 		measureValues = np.array(measureVector["value"])
 		timeValues = np.array(measureVector["time"])
-		times.append(timeValues)
-		values.append(measureValues)
-		legends.append(legendStr)
+		times[seedKey] = timeValues
+		values[seedKey] = measureValues
+		legends[seedKey] = legendStr
 	
 	return times, values, legends
 
@@ -173,53 +164,65 @@ def extractWiFiCellularData(data, keys, saveDir=None):
 	print("Extracting WiFi and Cellular data...")
 	
 	updatedData = copy.deepcopy(data)
-	for policy in keys["policy"]:
-		for renTime in keys["renegingTime"]:
-			sTimes, serviceTimeValues, legends = filterData(data, "totalServiceTime:vector", policy, renTime)
-			qTimes, queuesVisitedValues, _ = filterData(data, "queuesVisited:vector", policy, renTime)	
-			waTimes, wifiActiveValues, _ = filterData(data, "wifiActiveTime:vector", policy, renTime)
+	for renTime in keys["renegingTime"]:
+		sTimes, serviceTimeValues, legends = filterData(data, "totalServiceTime:vector", renTime)
+		qTimes, queuesVisitedValues, _ = filterData(data, "queuesVisited:vector", renTime)	
+		waTimes, wifiActiveValues, _ = filterData(data, "wifiActiveTime:vector", renTime)
+		caTimes, cellActiveValues, _ = filterData(data, "cellActiveTime:vector", renTime)
+		dTimes, dValues, dLegends = filterData(data, "deadlineDistrib:vector", renTime)
 	
-			wifiTimes = []
-			wifiServiceTimes = []
-			cellularTimes = []
-			cellularServiceTimes = []
+		wifiTimes = []
+		wifiServiceTimes = []
+		cellularTimes = []
+		cellularServiceTimes = []
 	
-			for i in range(len(sTimes)):
-				wifiJobs, cellularJobs = splitJobsByQueue([sTimes[i], qTimes[i]], serviceTimeValues[i], queuesVisitedValues[i])
+		for i in range(len(sTimes)):
+			wifiJobs, cellularJobs = splitJobsByQueue([sTimes[i], qTimes[i]], serviceTimeValues[i], queuesVisitedValues[i])
 		
-				wifiSeedTime = wifiJobs[:,:1].reshape(-1).tolist()
-				wifiSeedSerTime = wifiJobs[:,1:].reshape(-1).tolist()
-				wifiTimes.append(wifiSeedTime)
-				wifiServiceTimes.append(wifiSeedSerTime)
+			wifiSeedTime = wifiJobs[:,:1].reshape(-1).tolist()
+			wifiSeedSerTime = wifiJobs[:,1:].reshape(-1).tolist()
+			wifiTimes.append(wifiSeedTime)
+			wifiServiceTimes.append(wifiSeedSerTime)
 		
-				cellSeedTime = cellularJobs[:,:1].reshape(-1).tolist()
-				cellSeedSerTime = cellularJobs[:,1:].reshape(-1).tolist()
-				cellularTimes.append(cellSeedTime)
-				cellularServiceTimes.append(cellSeedSerTime)
+			cellSeedTime = cellularJobs[:,:1].reshape(-1).tolist()
+			cellSeedSerTime = cellularJobs[:,1:].reshape(-1).tolist()
+			cellularTimes.append(cellSeedTime)
+			cellularServiceTimes.append(cellSeedSerTime)
+			
+			seedKey = legends[i].split(", ")[1]
 				
-				policyKey = "policy=" + policy
-				renTimeKey = "renegingTime=" + renTime
-				seedKey = legends[i].split(", ")[2]
-				
-				updatedData[renTimeKey][policyKey][seedKey] = {
-					"wifi": {"time": wifiSeedTime, "serviceTime": wifiSeedSerTime, "activeTime": wifiActiveValues[i].tolist()},
-					"cellular": {"time": cellSeedTime, "serviceTime": cellSeedSerTime}
+			updatedData[renTime][seedKey] = {
+				"deadline": {
+					"time": dTimes[i].tolist(),
+					"values": dValues[i].tolist(),
+					"legends": dLegends[i]
+				},
+				"wifi": {
+					"stTime": wifiSeedTime,
+					"serviceTime": wifiSeedSerTime,
+					"aTime": waTimes[i].tolist(),
+					"activeTime": wifiActiveValues[i].tolist()
+				},
+				"cellular": {
+					"stTime": cellSeedTime,
+					"serviceTime": cellSeedSerTime,
+					"aTime": caTimes[i].tolist(),
+					"activeTime": cellActiveValues[i].tolist()
 				}
+			}
 		
-			if saveDir:
-				qTimesWifi, qValuesWifi = quantizeData(wifiTimes, wifiServiceTimes, step=100.0)
-				qTimesCell, qValuesCell = quantizeData(cellularTimes, cellularServiceTimes, step=200.0)
-				titles = {
-					"title": "policy={} renegingTime={}".format(policy, renTime),
-					"x": "Simulation Time",
-					"y": "Service Time"
-				}
-				legends = ["WiFi - Averaged on runs", "Cellular - Averaged on runs"]
-				fileName = "WiFi_Cellular_Scatter_{}_{}_averaged.png".format(policy, renTime)
-				plotGraph([qTimesWifi, qTimesCell], [qValuesWifi, qValuesCell], titles, legends, scatter=True, savePath=os.path.join(saveDir, fileName))
-				
+		if saveDir:
+			qTimesWifi, qValuesWifi = quantizeData(wifiTimes, wifiServiceTimes, step=100.0)
+			qTimesCell, qValuesCell = quantizeData(cellularTimes, cellularServiceTimes, step=200.0)
+			titles = {
+				"title": "renegingTime={}".format(renTime),
+				"x": "Simulation Time",
+				"y": "Service Time"
+			}
+			legends = ["WiFi - Averaged on runs", "Cellular - Averaged on runs"]
+			fileName = "WiFi_Cellular_Scatter_{}_averaged.png".format(renTime)
+			plotGraph([qTimesWifi, qTimesCell], [qValuesWifi, qValuesCell], titles, legends, scatter=True, savePath=os.path.join(saveDir, fileName))
+			
 	return updatedData
-	
-
 
 

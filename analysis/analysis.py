@@ -4,45 +4,45 @@ import argparse
 import numpy as np
 import os
 import copy
-from utils import filterData, quantizeData, setupPlots, loadData, plotGraph, extractWiFiCellularData, getTupleValues
+import scipy.stats as stats
+from utils import filterData, setupPlots, loadData, plotGraph, getTupleValues
 
+import pprint
 
 def computeMeanResponseTime(data, keys, outputDir):
-	print("Calculating Mean Response Time... ")
+	print("Plotting Mean Response Time...")
 	
-	lambdaValue = 0.5
 	responseData = copy.deepcopy(data)
-	
 	mrtData = []
+	confidenceValues = {}
+	
 	for renTime in keys["renegingTime"]:
-		for policy in keys["policy"]:
-			wifiTimes, wifiValues, _ = filterData(data, "queueLength:vector", policy, renTime, "FullOffloadingNetwork.wifiQueue")
-			cellTimes, cellValues, _ = filterData(data, "queueLength:vector", policy, renTime, "FullOffloadingNetwork.cellularQueue")
-			remTimes, remValues, _ = filterData(data, "queueLength:vector", policy, renTime, "FullOffloadingNetwork.remoteQueue")
+		times, values, _ = filterData(data, "totalResponseTime:vector", renTime)
+		confidenceValues[renTime] = {}
 			
-			qTimes, qVals = quantizeData([wifiTimes[0], cellTimes[0], remTimes[0]], [wifiValues[0], cellValues[0], remValues[0]], step=100.0)
+		respTimes = []
+		for seed in keys["seed"]:
+			meanRespTimePerSeed = np.mean(values[seed]) / 60.0
+			respTimes.append(meanRespTimePerSeed)
+			confidenceValues[renTime][seed] = meanRespTimePerSeed
 			
-			mrt = 1/lambdaValue * np.sum(np.mean(qVals))
-			mrtData.append([int(renTime), mrt, int(policy)])
+		meanRespTimePerDeadline = np.mean(respTimes)
+		#print("ren time: {}, MRT: {:.4f}".format(renTime, meanRespTimePerDeadline))
 			
-			renTimeKey = "renegingTime=" + renTime
-			policyKey = "policy=" + policy
-			responseData[renTimeKey][policyKey] = mrt
+		mrtData.append([int(renTime), meanRespTimePerDeadline])
+		responseData[renTime] = meanRespTimePerDeadline
 	
 	mrtData = np.array(mrtData)
 	plotData = []
-	for policy in keys["policy"]:
-		mask = (mrtData[:,2] == int(policy))
-		polData = mrtData[mask]
-		polData = polData[polData[:,0].argsort()]
-		xs = polData[:,0]
-		ys = polData[:,1]
-		coeff = np.polyfit(xs.flatten(), ys.flatten(), 7)
-		p = np.poly1d(coeff)
-		newys = p(xs).tolist()
-		plotData.append((xs.tolist(), newys, "policy: {}, trend".format(policy)))
-		#plotData.append((xs.tolist(), ys.tolist(), "policy: {}".format(policy)))
-		
+	
+	mrtData = mrtData[mrtData[:,0].argsort()]
+	xs = mrtData[:,0] / 60.0
+	ys = mrtData[:,1]
+	coeff = np.polyfit(xs.flatten(), ys.flatten(), 7)
+	p = np.poly1d(coeff)
+	newys = p(xs).tolist()
+	plotData.append((xs.tolist(), newys, "trend"))
+	#plotData.append((xs.tolist(), ys.tolist(), "values"))
 	
 	titles = {
 		"title": "Full Offloading Model",
@@ -50,66 +50,52 @@ def computeMeanResponseTime(data, keys, outputDir):
 		"y": "Mean Response Time [min]"
 	}
 	filePath = os.path.join(outputDir, "FullOffloading_Response_Deadline.png")
-	plotGraph(getTupleValues(0, plotData), getTupleValues(1, plotData), titles, legends=getTupleValues(2, plotData), ylim=(5, 35), savePath=filePath)
-	
-	return responseData
-		
+	plotGraph(getTupleValues(0, plotData), getTupleValues(1, plotData), titles, legends=getTupleValues(2, plotData), savePath=filePath)
+
+	return responseData, confidenceValues
+
 
 def computeMeanEnergyConsumption(data, keys, outputDir):
-	print("Calculating Mean Energy Consumption... ")
+	print("Plotting Mean Energy Consumption... ")
 	
 	wifiPowerCoefficient = 0.7
 	cellularPowerCoefficient = 2.5
-	lambdaValue = 0.5
-	simulationDuration = 2800000
 	energyData = copy.deepcopy(data)
 	
 	mecData = []
+	confidenceValues = {}
 	
 	for renTime in keys["renegingTime"]:
-		renTimeKey = "renegingTime=" + renTime
+		wTimes, wValues, _ = filterData(data, "jobServiceTime:vector", renTime, "FullOffloadingNetwork.wifiQueue")
+		cTimes, cValues, _ = filterData(data, "jobServiceTime:vector", renTime, "FullOffloadingNetwork.cellularQueue")
 		
-		for policy in keys["policy"]:
-			policyKey = "policy=" + policy
+		confidenceValues[renTime] = {}
+		mecs = []
+		for seed in keys["seed"]:
+			wst = np.sum(wValues[seed]) * wifiPowerCoefficient
+			cst = np.sum(cValues[seed]) * cellularPowerCoefficient
+			mec = (np.sum([wst, cst]) / (len(wValues[seed]) + len(cValues[seed]))) / 60.0
 			
-			wifiSeedsData = []
-			cellSeedsData = []
+			mecs.append(mec)
+			confidenceValues[renTime][seed] = mec
 			
-			for vals in data[renTimeKey][policyKey].values():
-				wTimes = vals["wifi"]["time"]
-				wSerTimes = vals["wifi"]["serviceTime"]
-				wActiveTimes = vals["wifi"]["activeTime"]
-				cTimes = vals["cellular"]["time"]
-				cSerTimes = vals["cellular"]["serviceTime"]
-				wifiSeedsData.append((wTimes, wSerTimes, wActiveTimes))
-				cellSeedsData.append((cTimes, cSerTimes))
-			
-			wifiTimes, wifiSerTimes = quantizeData(getTupleValues(0, wifiSeedsData), getTupleValues(1, wifiSeedsData), step=1000.0)
-			cellTimes, cellSerTimes = quantizeData(getTupleValues(0, cellSeedsData), getTupleValues(1, cellSeedsData), step=1000.0)
-			activeTimes = getTupleValues(2, wifiSeedsData)
-			
-			wifiFraction = np.sum(wifiSerTimes) / np.sum(activeTimes)
-			cellFraction = np.sum(cellSerTimes) / simulationDuration
-			mec = 1/lambdaValue * np.sum(wifiFraction * wifiPowerCoefficient + cellFraction * cellularPowerCoefficient)
-			
-			mecData.append([int(renTime), mec, int(policy)])
-			energyData[renTimeKey][policyKey] = mec
-			
+		mec = np.mean(mecs)
+		#print("ren time: {}, MEC: {:.4f}".format(renTime, mec))
+		
+		mecData.append([int(renTime), mec])
+		energyData[renTime] = mec
 	
 	mecData = np.array(mecData)
 	plotData = []
-	for policy in keys["policy"]:
-		mask = (mecData[:,2] == int(policy))
-		polData = mecData[mask]
-		polData = polData[polData[:,0].argsort()]
-		xs = polData[:,0]
-		ys = polData[:,1]
-		coeff = np.polyfit(xs.flatten(), ys.flatten(), 5)
-		p = np.poly1d(coeff)
-		newys = p(xs).tolist()
-		plotData.append((xs.tolist(), newys, "policy: {}, trend".format(policy)))
-		#plotData.append((xs.tolist(), ys.tolist(), "policy: {}".format(policy)))
 		
+	mecData = mecData[mecData[:,0].argsort()]
+	xs = mecData[:,0] / 60.0
+	ys = mecData[:,1]
+	coeff = np.polyfit(xs.flatten(), ys.flatten(), 5)
+	p = np.poly1d(coeff)
+	newys = p(xs).tolist()
+	plotData.append((xs.tolist(), newys, "trend"))
+	#plotData.append((xs.tolist(), ys.tolist(), "values"))	
 	
 	titles = {
 		"title": "Full Offloading Model",
@@ -119,53 +105,128 @@ def computeMeanEnergyConsumption(data, keys, outputDir):
 	filePath = os.path.join(outputDir, "FullOffloading_Energy_Deadline.png")
 	plotGraph(getTupleValues(0, plotData), getTupleValues(1, plotData), titles, legends=getTupleValues(2, plotData), savePath=filePath)
 	
-	return energyData
+	return energyData, confidenceValues
 
 
 def computeERWP(responseData, energyData, keys, outputDir, w=None):
-	print("Calculating ERWP... ")
+	print("Plotting ERWP... ")
 	
 	if not w:
 		w = [0.5]
 	
-	renTimesMap = {"8": 0.125, "10": 0.1, "18": 0.056, "25": 0.04, "33": 0.03, "40": 0.025, "50": 0.02, "65": 0.015, "80": 0.0125, "100": 0.01, "120": 0.008, "140": 0.007, "160": 0.00625, "180": 0.0055, "200": 0.005, "220": 0.0045, "240": 0.004, "260": 0.0038, "280": 0.0035, "300": 0.0033}
-	
 	erwpData = []
 	for exp in w:
-		for policy in keys["policy"]:
-			policyKey = "policy=" + policy
-			
-			for renTime in keys["renegingTime"]:
-				renTimeKey = "renegingTime=" + renTime
-				meanRespTime = responseData[renTimeKey][policyKey]
-				meanEnergyCons = energyData[renTimeKey][policyKey]
-				erwp = np.power(meanEnergyCons, exp) * np.power(meanRespTime, 1-exp)
-				erwpData.append([renTimesMap[renTime], erwp, int(policy), exp])
+		for renTime in keys["renegingTime"]:
+			meanRespTime = responseData[renTime]
+			meanEnergyCons = energyData[renTime]
+			erwp = np.multiply(np.power(meanEnergyCons, exp), np.power(meanRespTime, 1-exp))
+			erwpData.append([int(renTime)/60.0, erwp, exp])
 	
 	erwpData = np.array(erwpData)
-	
 	plotData = []
 	for exp in w:
-		for policy in keys["policy"]:
-			mask = (erwpData[:,3] == exp) & (erwpData[:,2] == int(policy))
-			subMatrix = erwpData[mask]
-			subMatrix = subMatrix[subMatrix[:,0].argsort()]
-			xs = subMatrix[:,0]
-			ys = subMatrix[:,1]
-			coeff = np.polyfit(xs.flatten(), ys.flatten(), 3)
-			p = np.poly1d(coeff)
-			newys = p(xs).tolist()
-			plotData.append((xs.tolist(), p(xs), "policy: {}, w: {}".format(policy, exp)))
+		mask = (erwpData[:,2] == exp)
+		subMatrix = erwpData[mask]
+		subMatrix[:,0] = 1.0 / subMatrix[:,0]
+		subMatrix = subMatrix[subMatrix[:,0].argsort()]
+		xs = subMatrix[:,0]
+		ys = subMatrix[:,1]
+		coeff = np.polyfit(xs.flatten(), ys.flatten(), 5)
+		p = np.poly1d(coeff)
+		newys = p(xs).tolist()
+		plotData.append((xs.tolist(), p(xs), "w: {}".format(exp)))
+		#plotData.append((xs.tolist(), ys, "w: {}".format(exp)))
 	
 	titles = {
-		"title": "Full Offloading Model ERWP",
+		"title": "Full Offloading Model",
 		"x": "Reneging Rate r",
 		"y": "ERWP"
 	}
 	filePath = os.path.join(outputDir, "FullOffloading_ERWP_RenegingRate.png")
 	plotGraph(getTupleValues(0, plotData), getTupleValues(1, plotData), titles, getTupleValues(2, plotData), savePath=filePath)
-	
 
+
+def computeBatchMetrics(data, metric="MRT", arg=None):
+	assert metric in ["MRT", "MEC", "ERWP"]
+	if metric == "ERWP":
+		assert arg != None
+	
+	metricInfo = (metric + " with w: {}".format(arg)) if metric == "ERWP" else metric
+	print("Computing confidence intervals for {}...".format(metricInfo))
+	
+	numBatch = [5, 7]
+	numObs = [10, 12]
+	dataToWrite = {}
+	
+	for deadline, seedsData in data.items():
+		values = list(seedsData.values())
+		computedValue = np.mean(values)
+		#print("Deadline: {} - {}: {:.3f}".format(deadline, metricInfo, computedValue))
+		
+		for batch, obs in zip(numBatch, numObs):
+			assert batch * obs <= len(values)
+		
+		for batch, obs in zip(numBatch, numObs):			
+			means = np.zeros(batch)
+			
+			for i in range(batch):
+				startIndex = i * obs
+				endIndex = (i+1) * obs
+				means[i] = np.mean(values[startIndex:endIndex])
+			
+			generalMean = np.mean(means)
+			variance = np.var(means, ddof=1)
+			fractionCoeff = np.sqrt(variance/batch)
+			minVal, maxVal = stats.t.interval(0.90, batch-1, loc=generalMean, scale=fractionCoeff)
+			
+			config = "batch_{}_obs_{}".format(batch, obs)
+			dataToWrite.setdefault(config, {})[int(deadline)] = {
+				"mean": generalMean,
+				"variance": variance,
+				"minVal": minVal,
+				"maxVal": maxVal,
+				"value": computedValue,
+				"included": "OK" if computedValue >= minVal and computedValue <= maxVal else ""
+			}
+			
+			#print("batch: {}, obs: {}, mean: {:.3f}, variance: {:.3f}, min: {:.3f}, max: {:.3f}{}".format(batch, obs, generalMean, variance, minVal, maxVal, ", OK" if computedValue >= minVal and computedValue <= maxVal else ""))
+
+	return dataToWrite
+
+
+def prepareERWPDataForBatchMetrics(responseData, energyData, w):
+	erwpValues = {}
+	for exp in w:
+		erwpValues[exp] = {}
+		for deadline, seedsVals in responseData.items():
+			erwpValues[exp][deadline] = {}
+			for seed in seedsVals.keys():
+				mrt = responseData[deadline][seed]
+				mec = energyData[deadline][seed]
+				erwp = np.multiply(np.power(mec, exp), np.power(mrt, 1-exp))
+				erwpValues[exp][deadline][seed] = erwp
+	
+	return erwpValues
+
+
+def writeBatchMetrics(intervalsData, metric, outputDir, args=None):
+	for config, values in intervalsData.items():
+		filePath = os.path.join(outputDir, "ConfidenceIntervals_{}{}_{}.csv".format(metric, ("_{}".format(args)) if args != None else "", config))
+		
+		with open(filePath, "w+", encoding="utf-8") as csv:
+			print("Deadline [s], Deadline [min], Reneging Rate r, {}, Mean, Variance, Left Value, Right Value, Included?".format(metric), file=csv)
+			
+			for deadline, interval in values.items():
+				deadlineMin = deadline // 60
+				rRate = 1.0 / deadlineMin
+				value = interval["value"]
+				mean = interval["mean"]
+				var = interval["variance"]
+				left = interval["minVal"]
+				right = interval["maxVal"]
+				included = interval["included"]
+				print("{}, {}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {}".format(deadline, deadlineMin, rRate, value, mean, var, left, right, included), file=csv)	
+	
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
@@ -173,13 +234,27 @@ if __name__ == "__main__":
 	parser.add_argument("--outputDir", type=str, required=True)
 	args = parser.parse_args()
 	plotsPath = os.path.join(args.outputDir, "plots")
+	csvPath = os.path.join(args.outputDir, "csv")
 	os.makedirs(plotsPath, exist_ok=True)
+	os.makedirs(csvPath, exist_ok=True)
 	
 	data, keys = loadData(args.inputDir, "BatchExecution")
 	setupPlots()
-	wifiCellData = extractWiFiCellularData(data, keys, plotsPath)
-	responseData = computeMeanResponseTime(data, keys, plotsPath)
-	energyData = computeMeanEnergyConsumption(wifiCellData, keys, plotsPath)
+	
+	responseData, respDataRaw = computeMeanResponseTime(data, keys, plotsPath)
+	energyData, enDataRaw = computeMeanEnergyConsumption(data, keys, plotsPath)
 	computeERWP(responseData, energyData, keys, plotsPath, w=[0.1, 0.5, 0.9])
+			
+	respIntervals = computeBatchMetrics(respDataRaw)
+	writeBatchMetrics(respIntervals, "MRT", csvPath)
+	
+	enIntervals = computeBatchMetrics(enDataRaw, metric="MEC")
+	writeBatchMetrics(enIntervals, "MEC", csvPath)
+	
+	erwpRaw = prepareERWPDataForBatchMetrics(respDataRaw, enDataRaw, [0.1, 0.5, 0.9])
+	for exp, rawData in erwpRaw.items():
+		erwpIntervals = computeBatchMetrics(rawData, metric="ERWP", arg=exp)
+		writeBatchMetrics(erwpIntervals, "ERWP", csvPath, "w_{}".format(exp))
+	
 
 
