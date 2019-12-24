@@ -42,7 +42,8 @@ private:
     simtime_t nextStatusChangeTime;
     simtime_t curJobServiceTime = SIMTIME_ZERO;
 
-    void updateNextStatusChangeTime(simtime_t expWiFiEnd);
+    void updateNextStatusChangeTime();
+    void prepareNextJobIfAny();
 
 public:
     OffloadingQueue();

@@ -6,7 +6,6 @@
  */
 
 #include "OffloadingQueue.h"
-#include <assert.h>
 
 #include "Job.h"
 
@@ -21,8 +20,6 @@ int OffloadingQueue::compareFunction(cObject *a, cObject *b) {
         simtime_t now = simTime();
         simtime_t timeLeftA = aDeadline->getArrivalTime() - now;
         simtime_t timeLeftB = bDeadline->getArrivalTime() - now;
-        assert (timeLeftA > SIMTIME_ZERO);
-        assert (timeLeftB > SIMTIME_ZERO);
         if (timeLeftA < timeLeftB) return -1;
         else if (timeLeftA > timeLeftB) return 1;
         else return 0;
@@ -40,13 +37,10 @@ int OffloadingQueue::compareFunction(cObject *a, cObject *b) {
     }
 }
 
-void OffloadingQueue::updateNextStatusChangeTime(simtime_t expWiFiEnd) {
-    if (wifiAvailable && expWiFiEnd != SIMTIME_ZERO)
-        emit(wifiActiveTime, expWiFiEnd);
-
-    simtime_t nextChange = (wifiAvailable) ? expWiFiEnd : par("cellularStateDistribution").doubleValue();
-    if (!wifiAvailable)
-        emit(cellActiveTime, nextChange);
+void OffloadingQueue::updateNextStatusChangeTime() {
+    simtime_t nextChange = (wifiAvailable) ? par("wifiStateDistribution").doubleValue() : par("cellularStateDistribution").doubleValue();
+    if (wifiAvailable) emit(wifiActiveTime, nextChange);
+    else emit(cellActiveTime, nextChange);
     nextStatusChangeTime = simTime() + nextChange;
     scheduleAt(nextStatusChangeTime, wifiStatusMsg);
     EV << "Next WIFI status change time: " << nextStatusChangeTime << endl;
@@ -88,7 +82,7 @@ void OffloadingQueue::initialize() {
 
     wifiAvailable = false;
     wifiStatusMsg = new cMessage("wifi_status_changed");
-    updateNextStatusChangeTime(SIMTIME_ZERO);
+    updateNextStatusChangeTime();
 
     EV << "Called INITIALIZE on QueueSubclass\nInitial wifiAvailable = " << (wifiAvailable ? "ON" : "OFF") << "\n";
 }
@@ -110,20 +104,7 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
                 if (endServiceMsg->isScheduled())
                     cancelEvent(endServiceMsg);
 
-                if (queue.isEmpty()) {
-                    servicedJob = nullptr;
-                    emit(busySignal, false);
-                }
-                else {
-                    servicedJob = getFromQueue();
-                    emit(queueLengthSignal, length());
-                    simtime_t serviceTime = startService(servicedJob);
-                    simtime_t nextSchedule = simTime() + serviceTime;
-                    curJobServiceTime = serviceTime;
-                    scheduleAt(nextSchedule, endServiceMsg);
-                    EV << "Job service time: " << curJobServiceTime << endl;
-                    EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
-                }
+                prepareNextJobIfAny();
             }
             else if (job == suspendedJob) {
                 suspendedJob = nullptr;
@@ -146,94 +127,34 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
 
         // wifi OFF -> ON
         if (wifiAvailable) {
-            simtime_t nextWiFiEnd = par("wifiStateDistribution").doubleValue();
-
-            if (suspendedJob)
-                resumeService(suspendedJob);
-            // no jobs were suspended so get a new one, if available
-            else {
-                if (queue.isEmpty()) {
-                    servicedJob = nullptr;
-                    emit(busySignal, false);
-                }
-                else {
-                    servicedJob = getFromQueue();
-                    emit(queueLengthSignal, length());
-                    simtime_t serviceTime = startService(servicedJob);
-                    simtime_t nextSchedule = simTime() + serviceTime;
-                    curJobServiceTime = serviceTime;
-                    scheduleAt(nextSchedule, endServiceMsg);
-                    EV << "Job service time: " << curJobServiceTime << endl;
-                    EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
-                }
-            }
-
-            updateNextStatusChangeTime(nextWiFiEnd);
+            if (suspendedJob) resumeService(suspendedJob);
+            else prepareNextJobIfAny();
+            updateNextStatusChangeTime();
         }
         // wifi ON -> OFF
         else {
-            updateNextStatusChangeTime(SIMTIME_ZERO);
-
-            // update queueing time here
-            cQueue::Iterator it = cQueue::Iterator(queue);
-            while (!it.end()) {
-                Job *job = check_and_cast<Job *>(*it);
-                simtime_t delta = simTime() - job->getTimestamp();
-                job->setTotalQueueingTime(job->getTotalQueueingTime() + delta);
-                ++it;
-            }
-
+            updateNextStatusChangeTime();
             if (servicedJob)
                 suspendService(servicedJob);
         }
     }
     else if (msg == endServiceMsg) {
         endService(servicedJob, 1);
+        prepareNextJobIfAny();
+    }
+    else {
+        Job *job = check_and_cast<Job *>(msg);
+        arrival(job);
 
-        if (queue.isEmpty()) {
-            servicedJob = nullptr;
-            emit(busySignal, false);
-        }
-        else {
-            servicedJob = getFromQueue();
-            emit(queueLengthSignal, length());
+        if (wifiAvailable && !servicedJob) {
+            servicedJob = job;
+            emit(busySignal, true);
             simtime_t serviceTime = startService(servicedJob);
             simtime_t nextSchedule = simTime() + serviceTime;
             curJobServiceTime = serviceTime;
             scheduleAt(nextSchedule, endServiceMsg);
             EV << "Job service time: " << curJobServiceTime << endl;
             EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
-        }
-    }
-    else {
-        Job *job = check_and_cast<Job *>(msg);
-        arrival(job);
-
-        if (wifiAvailable) {
-            if (!servicedJob) {
-                servicedJob = job;
-                emit(busySignal, true);
-                simtime_t serviceTime = startService(servicedJob);
-                simtime_t nextSchedule = simTime() + serviceTime;
-                curJobServiceTime = serviceTime;
-                scheduleAt(nextSchedule, endServiceMsg);
-                EV << "Job service time: " << curJobServiceTime << endl;
-                EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
-            }
-            else {
-                if (capacity >= 0 && queue.getLength() >= capacity) {
-                    EV << "Capacity full! Job dropped...\n";
-                    if (hasGUI())
-                        bubble("Dropped!");
-
-                    emit(droppedSignal, 1);
-                    delete job;
-                    return;
-                }
-
-                queue.insert(job);
-                emit(queueLengthSignal, length());
-            }
         }
         else {
             queue.insert(job);
@@ -245,6 +166,23 @@ void OffloadingQueue::handleMessage(cMessage *msg) {
 void OffloadingQueue::refreshDisplay() const {
     getDisplayString().setTagArg("i2", 0, servicedJob ? "status/execute" : "");
     getDisplayString().setTagArg("i", 1, wifiAvailable ? "lime" : "red");
+}
+
+void OffloadingQueue::prepareNextJobIfAny() {
+    if (queue.isEmpty()) {
+        servicedJob = nullptr;
+        emit(busySignal, false);
+    }
+    else {
+        servicedJob = getFromQueue();
+        emit(queueLengthSignal, length());
+        simtime_t serviceTime = startService(servicedJob);
+        simtime_t nextSchedule = simTime() + serviceTime;
+        curJobServiceTime = serviceTime;
+        scheduleAt(nextSchedule, endServiceMsg);
+        EV << "Job service time: " << curJobServiceTime << endl;
+        EV << "END time for " << servicedJob << ": " << nextSchedule << endl;
+    }
 }
 
 Job* OffloadingQueue::getFromQueue() {
