@@ -7,7 +7,6 @@ import copy
 import scipy.stats as stats
 from utils import filterData, setupPlots, loadData, plotGraph, getTupleValues
 
-import pprint
 
 def computeMeanResponseTime(data, keys, outputDir):
 	print("Plotting Mean Response Time...")
