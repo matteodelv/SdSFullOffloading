@@ -152,43 +152,24 @@ def computeBatchMetrics(data, metric="MRT", arg=None):
 	
 	metricInfo = (metric + " with w: {}".format(arg)) if metric == "ERWP" else metric
 	print("Computing confidence intervals for {}...".format(metricInfo))
-	
-	numBatch = [5, 7]
-	numObs = [10, 12]
 	dataToWrite = {}
 	
 	for deadline, seedsData in data.items():
 		values = list(seedsData.values())
-		computedValue = np.mean(values)
-		#print("Deadline: {} - {}: {:.3f}".format(deadline, metricInfo, computedValue))
-		
-		for batch, obs in zip(numBatch, numObs):
-			assert batch * obs <= len(values)
-		
-		for batch, obs in zip(numBatch, numObs):			
-			means = np.zeros(batch)
+		generalMean = np.mean(values)
+		variance = np.var(means, ddof=1)
+		fractionCoeff = np.sqrt(variance/len(values))
+		minVal, maxVal = stats.t.interval(0.90, len(values)-1, loc=generalMean, scale=fractionCoeff)
 			
-			for i in range(batch):
-				startIndex = i * obs
-				endIndex = (i+1) * obs
-				means[i] = np.mean(values[startIndex:endIndex])
+		config = "total"
+		dataToWrite.setdefault(config, {})[int(deadline)] = {
+			"mean": generalMean,
+			"variance": variance,
+			"minVal": minVal,
+			"maxVal": maxVal
+		}
 			
-			generalMean = np.mean(means)
-			variance = np.var(means, ddof=1)
-			fractionCoeff = np.sqrt(variance/batch)
-			minVal, maxVal = stats.t.interval(0.90, batch-1, loc=generalMean, scale=fractionCoeff)
-			
-			config = "batch_{}_obs_{}".format(batch, obs)
-			dataToWrite.setdefault(config, {})[int(deadline)] = {
-				"mean": generalMean,
-				"variance": variance,
-				"minVal": minVal,
-				"maxVal": maxVal,
-				"value": computedValue,
-				"included": "OK" if computedValue >= minVal and computedValue <= maxVal else ""
-			}
-			
-			#print("batch: {}, obs: {}, mean: {:.3f}, variance: {:.3f}, min: {:.3f}, max: {:.3f}{}".format(batch, obs, generalMean, variance, minVal, maxVal, ", OK" if computedValue >= minVal and computedValue <= maxVal else ""))
+		#print("mean: {:.3f}, variance: {:.3f}, min: {:.3f}, max: {:.3f}".format(generalMean, variance, minVal, maxVal))
 
 	return dataToWrite
 
@@ -213,18 +194,16 @@ def writeBatchMetrics(intervalsData, metric, outputDir, args=None):
 		filePath = os.path.join(outputDir, "ConfidenceIntervals_{}{}_{}.csv".format(metric, ("_{}".format(args)) if args != None else "", config))
 		
 		with open(filePath, "w+", encoding="utf-8") as csv:
-			print("Deadline [s], Deadline [min], Reneging Rate r, {}, Mean, Variance, Left Value, Right Value, Included?".format(metric), file=csv)
+			print("Deadline [s], Deadline [min], Reneging Rate r, Mean, Variance, Left Value, Right Value", file=csv)
 			
 			for deadline, interval in values.items():
 				deadlineMin = deadline // 60
 				rRate = 1.0 / deadlineMin
-				value = interval["value"]
 				mean = interval["mean"]
 				var = interval["variance"]
 				left = interval["minVal"]
 				right = interval["maxVal"]
-				included = interval["included"]
-				print("{}, {}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {}".format(deadline, deadlineMin, rRate, value, mean, var, left, right, included), file=csv)	
+				print("{}, {}, {:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}".format(deadline, deadlineMin, rRate, mean, var, left, right), file=csv)	
 	
 
 if __name__ == "__main__":
