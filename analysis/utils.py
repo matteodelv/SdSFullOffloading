@@ -25,13 +25,13 @@ def plotGraph(xs, ys, titles, legends=None, ylim=None, scatter=False, drawStyle=
 	assert len(xs) == len(ys)
 	if legends:
 		assert len(xs) == len(legends)
-	
+
 	for i in range(len(xs)):
 		if scatter:
 			plt.scatter(xs[i], ys[i], label=None if not legends else legends[i], marker="o")
 		else:
 			plt.plot(xs[i], ys[i], label=None if not legends else legends[i], drawstyle=drawStyle)
-	
+
 	plt.title(titles["title"])
 	plt.xlabel(titles["x"])
 	plt.ylabel(titles["y"])
@@ -52,7 +52,7 @@ def getTupleValues(index, data):
 
 def loadData(inputDir, config):
 	print("Loading data...")
-	
+
 	selectedFiles = []
 	for root, dirs, files in os.walk(inputDir):
 		for file in files:
@@ -93,7 +93,12 @@ def filterData(data, measureKey, renegingTime, moduleName=None):
 	for seedKey, simData in relevantData.items():
 		legendStr = "{}, {}{}".format(renegingTime, seedKey, "" if moduleName == None else ", {}".format(moduleName.replace("FullOffloadingNetwork.", "")))
 		vectors = simData["vectors"]
-		measureVector = [vec for vec in vectors if vec["name"] == measureKey and (moduleName == None or vec["module"] == moduleName)][0]
+		measureVector = [vec for vec in vectors if vec["name"] == measureKey and (moduleName == None or vec["module"] == moduleName)]
+		if len(measureVector) > 0:
+			measureVector = measureVector[0]
+		else:
+			print("Skipped seed {} for renTime {}...".format(seedKey, renegingTime))
+			continue
 		measureValues = np.array(measureVector["value"])
 		timeValues = np.array(measureVector["time"])
 		times[seedKey] = timeValues

@@ -19,7 +19,7 @@ Use the following commands to download a local copy of this repository:
 ### Execution
 The entire execution is handled by the ``launchSimulation.sh`` shell script: it launches all the simulations, gathers data, exports them from vectorial files to JSON files and then, executes the appropriate Python script for results analysis.  
   
-The project has two configuration: ``SetupAnalysis``, for the initial evaluation of the warmup-period, and ``BatchExecution``, which is the real steady-state system simulation. When they are both executed, the total amount of data generated is about 8/9 GB.
+The project has two configuration: ``SetupAnalysis``, for the initial evaluation of the warmup-period, and ``BatchExecution``, which is the real steady-state system simulation. When they are both executed, the total amount of data generated is about 35/40 GB.
 
 To run the simulation, first you have to define the queueinglib path by issuing the following command (replace the path with the appropriate one for your OMNeT installation):  
 ``export QUEUEINGLIB=~/omnetpp-5.5.1/samples/queueinglib``  
