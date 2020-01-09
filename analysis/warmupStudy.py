@@ -44,10 +44,10 @@ if __name__ == "__main__":
 	data, keys = loadData(args.inputDir, "SetupAnalysis")
 	setupPlots()
 	
-	vectors = ["jobServiceTime:vector", "wifiActiveTime:vector", "cellActiveTime:vector", "deadlineDistrib:vector", "jobServiceTime:vector"]
-	modules = ["FullOffloadingNetwork.cellularQueue", None, None, None, "FullOffloadingNetwork.wifiQueue"]
-	fileNames = ["SetupAnalysis_ServiceTime_CellularQueue.png", "SetupAnalysis_WiFiQueue_StateDistribution.png", "SetupAnalysis_CellularQueue_StateDistribution.png", "SetupAnalysis_DeadlineDistributions.png", "SetupAnalysis_ServiceTime_WiFiQueue.png"]
-	titles = ["Cellular Queue", "WiFi State Distribution", "Cellular State Distribution", "Deadline Distributions", "WiFi Queue"]
+	vectors = ["jobServiceTime:vector", "wifiActiveTime:vector", "cellActiveTime:vector", "jobServiceTime:vector"]
+	modules = ["FullOffloadingNetwork.cellularQueue", None, None, "FullOffloadingNetwork.wifiQueue"]
+	fileNames = ["SetupAnalysis_ServiceTime_CellularQueue.png", "SetupAnalysis_WiFiQueue_StateDistribution.png", "SetupAnalysis_CellularQueue_StateDistribution.png", "SetupAnalysis_ServiceTime_WiFiQueue.png"]
+	titles = ["Cellular Queue", "WiFi State Distribution", "Cellular State Distribution", "WiFi Queue"]
 	
 	for vec, module, name, title in zip(vectors, modules, fileNames, titles):
 		plotTrends(data, keys, plotsPath, vec, title, name, module)
