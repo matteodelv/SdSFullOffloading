@@ -71,6 +71,8 @@ def computeMeanEnergyConsumption(data, keys, outputDir):
 		confidenceValues[renTime] = {}
 		mecs = []
 		for seed in keys["seed"]:
+			if seed not in wValues or seed not in cValues:
+				continue
 			wst = np.sum(wValues[seed]) * wifiPowerCoefficient
 			cst = np.sum(cValues[seed]) * cellularPowerCoefficient
 			mec = (np.sum([wst, cst]) / (len(wValues[seed]) + len(cValues[seed]))) / 60.0
@@ -157,7 +159,7 @@ def computeBatchMetrics(data, metric="MRT", arg=None):
 	for deadline, seedsData in data.items():
 		values = list(seedsData.values())
 		generalMean = np.mean(values)
-		variance = np.var(means, ddof=1)
+		variance = np.var(values, ddof=1)
 		fractionCoeff = np.sqrt(variance/len(values))
 		minVal, maxVal = stats.t.interval(0.90, len(values)-1, loc=generalMean, scale=fractionCoeff)
 			
@@ -181,6 +183,8 @@ def prepareERWPDataForBatchMetrics(responseData, energyData, w):
 		for deadline, seedsVals in responseData.items():
 			erwpValues[exp][deadline] = {}
 			for seed in seedsVals.keys():
+				if seed not in responseData[deadline] or seed not in energyData[deadline]:
+					continue
 				mrt = responseData[deadline][seed]
 				mec = energyData[deadline][seed]
 				erwp = np.multiply(np.power(mec, exp), np.power(mrt, 1-exp))
